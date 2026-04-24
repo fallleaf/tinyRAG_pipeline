@@ -41,17 +41,14 @@ class ChunkStage(Stage):
                 logger.error(f"❌ 读取/分块失败: {abs_path} - {e}")
                 return file_item["id"], [], file_item["file_path"]
 
-        all_chunks: list[tuple[int, any, str]] = []
-        total_with_chunks = 0
+        # 使用生成器，避免累积所有 chunk
+        def chunk_generator():
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                for f_id, chunks, f_path in executor.map(lambda f: _split_file(f), ctx.files_to_index):
+                    if chunks:
+                        for c in chunks:
+                            yield (f_id, c, f_path)
 
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            for f_id, chunks, f_path in executor.map(lambda f: _split_file(f), ctx.files_to_index):
-                if chunks:
-                    total_with_chunks += 1
-                    for c in chunks:
-                        all_chunks.append((f_id, c, f_path))
-
-        ctx.file_chunks = all_chunks
-        ctx.total_files_with_chunks = total_with_chunks
-        logger.info(f"✂️ 分块完成: {len(all_chunks)} 个 chunks (来自 {total_with_chunks} 个文件)")
+        ctx.file_chunks = chunk_generator()
+        logger.info(f"✂️ 分块完成: 准备流式处理 chunks")
         return ctx

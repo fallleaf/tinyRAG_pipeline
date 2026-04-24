@@ -37,65 +37,85 @@ class IndexStage(Stage):
 
         # 按批提交（与 embedding 批大小对齐）
         batch_size = ctx.config.embedding_model.batch_size
-        total = len(ctx.chunk_embeddings)
         processed = 0
+        check_interval = ctx.memory_check_interval
 
-        for batch_start in range(0, total, batch_size):
-            batch = ctx.chunk_embeddings[batch_start:batch_start + batch_size]
+        # 流式处理，不累积所有结果
+        batch = []
+        for item in ctx.chunk_embeddings:
+            batch.append(item)
+            if len(batch) >= batch_size:
+                processed += self._process_batch(batch, db, global_chunk_idx, processed, ctx)
+                batch = []
+                # 释放内存
+                del batch
+                batch = []
 
-            try:
-                db.conn.execute("PRAGMA synchronous = OFF;")
-                for idx, (file_id, chunk, f_path, emb) in enumerate(batch):
-                    chunk_idx = global_chunk_idx + processed + idx
-                    metadata_json = json.dumps(
-                        chunk.metadata or {}, ensure_ascii=False, default=json_serialize
-                    )
-                    confidence_json = json.dumps(
-                        chunk.confidence_metadata or {}, ensure_ascii=False, default=json_serialize
-                    )
+                # 定期检查内存使用
+                if processed % check_interval == 0:
+                    ctx.check_memory()
 
-                    cursor = db.conn.execute(
-                        """INSERT INTO chunks
-                        (file_id, chunk_index, content, content_type, section_title, section_path,
-                         start_pos, end_pos, confidence_final_weight, metadata, confidence_json)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                        (
-                            file_id, chunk_idx, chunk.content, chunk.content_type.value,
-                            chunk.section_title, chunk.section_path,
-                            chunk.start_pos, chunk.end_pos, 1.0,
-                            metadata_json, confidence_json,
-                        ),
-                    )
-                    new_chunk_id = cursor.lastrowid
+        # 处理剩余的批次
+        if batch:
+            processed += self._process_batch(batch, db, global_chunk_idx, processed, ctx)
 
-                    # 向量入库
-                    if db.vec_support:
-                        db.conn.execute(
-                            "INSERT INTO vectors (chunk_id, embedding) VALUES (?, ?)",
-                            (new_chunk_id, array.array("f", emb).tobytes()),
-                        )
-
-                    # FTS5 入库
-                    db.conn.execute(
-                        "INSERT INTO fts5_index (rowid, content) VALUES (?, ?)",
-                        (new_chunk_id, prepare_fts_content(chunk, f_path)),
-                    )
-
-                db.conn.commit()
-                processed += len(batch)
-
-                if not ctx.quiet:
-                    logger.info(
-                        f"   💾 已入库 {min(batch_start + batch_size, total)}/{total} chunks"
-                    )
-
-            except Exception as e:
-                db.conn.rollback()
-                ctx.add_error(f"批次入库失败: {e}")
-                raise
-            finally:
-                db.conn.execute("PRAGMA synchronous = NORMAL;")
+        # 最终内存检查
+        ctx.check_memory(force_gc=True)
 
         ctx.total_indexed = processed
         logger.info(f"📥 索引入库完成: {processed} 个 chunks")
         return ctx
+
+    def _process_batch(self, batch: list, db, global_chunk_idx: int, offset: int, ctx: PipelineContext) -> int:
+        """处理单个批次，返回处理的数量"""
+        try:
+            db.conn.execute("PRAGMA synchronous = OFF;")
+            for idx, (file_id, chunk, f_path, emb) in enumerate(batch):
+                chunk_idx = global_chunk_idx + offset + idx
+                metadata_json = json.dumps(
+                    chunk.metadata or {}, ensure_ascii=False, default=json_serialize
+                )
+                confidence_json = json.dumps(
+                    chunk.confidence_metadata or {}, ensure_ascii=False, default=json_serialize
+                )
+
+                cursor = db.conn.execute(
+                    """INSERT INTO chunks
+                    (file_id, chunk_index, content, content_type, section_title, section_path,
+                     start_pos, end_pos, confidence_final_weight, metadata, confidence_json)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        file_id, chunk_idx, chunk.content, chunk.content_type.value,
+                        chunk.section_title, chunk.section_path,
+                        chunk.start_pos, chunk.end_pos, 1.0,
+                        metadata_json, confidence_json,
+                    ),
+                )
+                new_chunk_id = cursor.lastrowid
+
+                # 向量入库
+                if db.vec_support:
+                    db.conn.execute(
+                        "INSERT INTO vectors (chunk_id, embedding) VALUES (?, ?)",
+                        (new_chunk_id, array.array("f", emb).tobytes()),
+                    )
+
+                # FTS5 入库
+                db.conn.execute(
+                    "INSERT INTO fts5_index (rowid, content) VALUES (?, ?)",
+                    (new_chunk_id, prepare_fts_content(chunk, f_path)),
+                )
+
+            db.conn.commit()
+
+            if not ctx.quiet:
+                logger.info(f"   💾 已入库 {offset + len(batch)} chunks")
+
+        except Exception as e:
+            db.conn.rollback()
+            ctx.add_error(f"批次入库失败: {e}")
+            raise
+        finally:
+            db.conn.execute("PRAGMA synchronous = NORMAL;")
+
+        return len(batch)

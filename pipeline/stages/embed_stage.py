@@ -32,25 +32,40 @@ class EmbedStage(Stage):
 
         # 流式批处理：按 stream_batch_size 分批
         stream_batch_size = getattr(config, "stream_batch_size", 100)
-        all_results: list[tuple[int, any, str, list[float]]] = []
-        total_chunks = len(ctx.file_chunks)
+        check_interval = ctx.memory_check_interval
 
-        for batch_start in range(0, total_chunks, stream_batch_size):
-            batch = ctx.file_chunks[batch_start:batch_start + stream_batch_size]
-            texts = [c[1].content for c in batch]
+        # 使用生成器，避免累积所有结果
+        def embedding_generator():
+            batch = []
+            processed = 0
+            for item in ctx.file_chunks:
+                batch.append(item)
+                if len(batch) >= stream_batch_size:
+                    yield from self._process_batch(batch, embed_engine, ctx)
+                    processed += len(batch)
+                    batch = []
 
-            try:
-                embeddings = embed_engine.embed(texts)
-            except RuntimeError as e:
-                ctx.add_error(f"向量化批次 {batch_start} 失败: {e}")
-                raise
+                    # 定期检查内存使用
+                    if processed % check_interval == 0:
+                        ctx.check_memory()
 
-            for (file_id, chunk, f_path), emb in zip(batch, embeddings):
-                all_results.append((file_id, chunk, f_path, emb))
+            # 处理剩余的批次
+            if batch:
+                yield from self._process_batch(batch, embed_engine, ctx)
 
-            if not ctx.quiet:
-                logger.info(f"   📊 已向量化 {min(batch_start + stream_batch_size, total_chunks)}/{total_chunks}")
-
-        ctx.chunk_embeddings = all_results
-        logger.info(f"🔢 向量化完成: {len(all_results)} 个向量")
+        ctx.chunk_embeddings = embedding_generator()
+        logger.info(f"🔢 向量化完成: 准备流式处理向量")
         return ctx
+
+    def _process_batch(self, batch: list, embed_engine, ctx: PipelineContext):
+        """处理单个批次，返回生成器"""
+        texts = [c[1].content for c in batch]
+
+        try:
+            embeddings = embed_engine.embed(texts)
+        except RuntimeError as e:
+            ctx.add_error(f"向量化批次失败: {e}")
+            raise
+
+        for (file_id, chunk, f_path), emb in zip(batch, embeddings):
+            yield (file_id, chunk, f_path, emb)

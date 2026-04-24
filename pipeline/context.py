@@ -11,6 +11,7 @@ PipelineContext 是贯穿所有 Stage 的数据载体，替代原 tinyRAG 中
 """
 from __future__ import annotations
 
+import gc
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -79,6 +80,10 @@ class PipelineContext:
     # ── 进度控制 ──────────────────────────
     quiet: bool = False                   # 静默模式（MCP stdio 下禁用 tqdm）
 
+    # ── 内存监控 ──────────────────────────
+    memory_limit_mb: int = 4096           # 内存限制（MB），默认 4GB
+    memory_check_interval: int = 100      # 内存检查间隔（处理多少个 chunk 后检查一次）
+
     def add_error(self, msg: str) -> None:
         self.errors.append(msg)
         logger.error(msg)
@@ -95,3 +100,42 @@ class PipelineContext:
             "total_indexed": self.total_indexed,
             "search_results": len(self.search_results),
         }
+
+    def check_memory(self, force_gc: bool = False) -> dict[str, Any]:
+        """检查内存使用情况，必要时强制垃圾回收
+
+        Args:
+            force_gc: 是否强制执行垃圾回收
+
+        Returns:
+            内存使用信息字典
+        """
+        try:
+            import psutil
+            process = psutil.Process()
+            mem_info = process.memory_info()
+            rss_mb = mem_info.rss / 1024 / 1024
+
+            result = {
+                "rss_mb": round(rss_mb, 2),
+                "limit_mb": self.memory_limit_mb,
+                "usage_percent": round(rss_mb / self.memory_limit_mb * 100, 2),
+            }
+
+            # 如果内存使用超过限制，强制垃圾回收
+            if rss_mb > self.memory_limit_mb or force_gc:
+                logger.warning(f"⚠️ 内存使用过高: {rss_mb:.2f} MB / {self.memory_limit_mb} MB")
+                gc.collect()
+                mem_info_after = process.memory_info()
+                rss_mb_after = mem_info_after.rss / 1024 / 1024
+                result["rss_mb_after_gc"] = round(rss_mb_after, 2)
+                result["freed_mb"] = round(rss_mb - rss_mb_after, 2)
+                logger.info(f"🧹 垃圾回收完成: 释放 {result['freed_mb']:.2f} MB")
+
+            return result
+        except ImportError:
+            logger.warning("⚠️ psutil 未安装，无法监控内存使用")
+            return {"error": "psutil not installed"}
+        except Exception as e:
+            logger.error(f"❌ 内存监控失败: {e}")
+            return {"error": str(e)}
