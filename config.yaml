@@ -2,10 +2,9 @@
 # 所有路径相对于本文件所在目录解析
 
 # ── tinyRAG 代码根目录 ──────────────────────────────
-# tinyRAG_pipeline 复用 tinyRAG 的 Python 模块（scanner/chunker/embedder/retriever/storage）
-# 设置 tinyRAG 项目根目录路径，设为 null 则自动搜索
-# 示例: "/home/fallleaf/tinyRAG" 或 "../tinyRAG"
-tinyrag_root: "/home/fallleaf/tinyRAG_pipeline"
+# tinyRAG_pipeline 作为独立项目，不依赖 tinyRAG
+# 此配置已废弃，保留仅为兼容性
+tinyrag_root: null
 
 # ── 知识库 Vault ────────────────────────────────────
 vaults:
