@@ -2,6 +2,7 @@
 
 此模块复用 tinyRAG 的 jieba_helper，通过 sys.path 确保正确导入。
 """
+
 import os
 import sys
 from pathlib import Path
@@ -13,6 +14,7 @@ def _get_jieba_segment():
     if str(tinyrag_root) not in sys.path:
         sys.path.insert(0, str(tinyrag_root))
     from utils.jieba_helper import jieba_segment
+
     return jieba_segment
 
 
@@ -36,9 +38,13 @@ def prepare_fts_content(chunk, file_path: str) -> str:
     section_title = chunk.section_title or ""
 
     parts = [
-        jieba_segment(filename), jieba_segment(filename),
-        jieba_segment(chunk.section_path or ""), jieba_segment(section_title),
-        jieba_segment(section_title), jieba_segment(tag_str),
-        jieba_segment(doc_type), jieba_segment(chunk.content),
+        jieba_segment(filename),
+        jieba_segment(filename),
+        jieba_segment(chunk.section_path or ""),
+        jieba_segment(section_title),
+        jieba_segment(section_title),
+        jieba_segment(tag_str),
+        jieba_segment(doc_type),
+        jieba_segment(chunk.content),
     ]
     return " ".join(filter(None, parts)).strip()

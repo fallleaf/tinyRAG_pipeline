@@ -32,7 +32,9 @@ class IndexStage(Stage):
             raise RuntimeError("数据库未初始化，请先运行 ScanStage")
 
         # 获取当前最大 chunk_index，避免冲突
-        row = db.conn.execute("SELECT COALESCE(MAX(chunk_index), -1) FROM chunks").fetchone()
+        row = db.conn.execute(
+            "SELECT COALESCE(MAX(chunk_index), -1) FROM chunks"
+        ).fetchone()
         global_chunk_idx = row[0] + 1 if row else 0
         ctx.global_chunk_idx = global_chunk_idx
 
@@ -46,7 +48,9 @@ class IndexStage(Stage):
         for item in ctx.chunk_embeddings:
             batch.append(item)
             if len(batch) >= batch_size:
-                processed += self._process_batch(batch, db, global_chunk_idx, processed, ctx)
+                processed += self._process_batch(
+                    batch, db, global_chunk_idx, processed, ctx
+                )
                 batch = []
                 # 释放内存
                 del batch
@@ -58,7 +62,9 @@ class IndexStage(Stage):
 
         # 处理剩余的批次
         if batch:
-            processed += self._process_batch(batch, db, global_chunk_idx, processed, ctx)
+            processed += self._process_batch(
+                batch, db, global_chunk_idx, processed, ctx
+            )
 
         # 最终内存检查
         ctx.check_memory(force_gc=True)
@@ -67,15 +73,21 @@ class IndexStage(Stage):
         logger.info(f"📥 索引入库完成: {processed} 个 chunks")
         return ctx
 
-    def _process_batch(self, batch: list, db, global_chunk_idx: int, offset: int, ctx: PipelineContext) -> int:
+    def _process_batch(
+        self, batch: list, db, global_chunk_idx: int, offset: int, ctx: PipelineContext
+    ) -> int:
         """处理单个批次，返回处理的数量"""
         try:
             db.conn.execute("PRAGMA synchronous = OFF;")
             for idx, (file_id, chunk, f_path, emb) in enumerate(batch):
                 chunk_idx = global_chunk_idx + offset + idx
-                metadata_json = json.dumps(chunk.metadata or {}, ensure_ascii=False, default=json_serialize)
+                metadata_json = json.dumps(
+                    chunk.metadata or {}, ensure_ascii=False, default=json_serialize
+                )
                 confidence_json = json.dumps(
-                    chunk.confidence_metadata or {}, ensure_ascii=False, default=json_serialize
+                    chunk.confidence_metadata or {},
+                    ensure_ascii=False,
+                    default=json_serialize,
                 )
 
                 cursor = db.conn.execute(

@@ -3,6 +3,7 @@
 
 对比优化前后的内存使用情况
 """
+
 import gc
 import sys
 from pathlib import Path
@@ -25,6 +26,7 @@ def test_memory_usage():
     """测试内存使用情况"""
     try:
         import psutil
+
         process = psutil.Process()
     except ImportError:
         logger.error("❌ psutil 未安装，无法测试内存使用")
@@ -50,7 +52,9 @@ def test_memory_usage():
 
     # 记录扫描后内存
     mem_after_scan = process.memory_info().rss / 1024 / 1024
-    logger.info(f"📊 扫描后内存使用: {mem_after_scan:.2f} MB (+{mem_after_scan - mem_before:.2f} MB)")
+    logger.info(
+        f"📊 扫描后内存使用: {mem_after_scan:.2f} MB (+{mem_after_scan - mem_before:.2f} MB)"
+    )
 
     # 运行分块阶段
     chunk_stage = ChunkStage()
@@ -58,7 +62,9 @@ def test_memory_usage():
 
     # 记录分块后内存
     mem_after_chunk = process.memory_info().rss / 1024 / 1024
-    logger.info(f"📊 分块后内存使用: {mem_after_chunk:.2f} MB (+{mem_after_chunk - mem_after_scan:.2f} MB)")
+    logger.info(
+        f"📊 分块后内存使用: {mem_after_chunk:.2f} MB (+{mem_after_chunk - mem_after_scan:.2f} MB)"
+    )
 
     # 运行向量化阶段
     embed_stage = EmbedStage()
@@ -66,7 +72,9 @@ def test_memory_usage():
 
     # 记录向量化后内存
     mem_after_embed = process.memory_info().rss / 1024 / 1024
-    logger.info(f"📊 向量化后内存使用: {mem_after_embed:.2f} MB (+{mem_after_embed - mem_after_chunk:.2f} MB)")
+    logger.info(
+        f"📊 向量化后内存使用: {mem_after_embed:.2f} MB (+{mem_after_embed - mem_after_chunk:.2f} MB)"
+    )
 
     # 运行入库阶段
     index_stage = IndexStage()
@@ -74,22 +82,36 @@ def test_memory_usage():
 
     # 记录入库后内存
     mem_after_index = process.memory_info().rss / 1024 / 1024
-    logger.info(f"📊 入库后内存使用: {mem_after_index:.2f} MB (+{mem_after_index - mem_after_embed:.2f} MB)")
+    logger.info(
+        f"📊 入库后内存使用: {mem_after_index:.2f} MB (+{mem_after_index - mem_after_embed:.2f} MB)"
+    )
 
     # 强制垃圾回收
     gc.collect()
     mem_after_gc = process.memory_info().rss / 1024 / 1024
-    logger.info(f"📊 垃圾回收后内存使用: {mem_after_gc:.2f} MB (释放 {mem_after_index - mem_after_gc:.2f} MB)")
+    logger.info(
+        f"📊 垃圾回收后内存使用: {mem_after_gc:.2f} MB (释放 {mem_after_index - mem_after_gc:.2f} MB)"
+    )
 
     # 输出总结
     logger.info("=" * 60)
     logger.info("📊 内存使用总结:")
     logger.info(f"  初始: {mem_before:.2f} MB")
-    logger.info(f"  扫描: {mem_after_scan:.2f} MB (+{mem_after_scan - mem_before:.2f} MB)")
-    logger.info(f"  分块: {mem_after_chunk:.2f} MB (+{mem_after_chunk - mem_after_scan:.2f} MB)")
-    logger.info(f"  向量化: {mem_after_embed:.2f} MB (+{mem_after_embed - mem_after_chunk:.2f} MB)")
-    logger.info(f"  入库: {mem_after_index:.2f} MB (+{mem_after_index - mem_after_embed:.2f} MB)")
-    logger.info(f"  GC 后: {mem_after_gc:.2f} MB (释放 {mem_after_index - mem_after_gc:.2f} MB)")
+    logger.info(
+        f"  扫描: {mem_after_scan:.2f} MB (+{mem_after_scan - mem_before:.2f} MB)"
+    )
+    logger.info(
+        f"  分块: {mem_after_chunk:.2f} MB (+{mem_after_chunk - mem_after_scan:.2f} MB)"
+    )
+    logger.info(
+        f"  向量化: {mem_after_embed:.2f} MB (+{mem_after_embed - mem_after_chunk:.2f} MB)"
+    )
+    logger.info(
+        f"  入库: {mem_after_index:.2f} MB (+{mem_after_index - mem_after_embed:.2f} MB)"
+    )
+    logger.info(
+        f"  GC 后: {mem_after_gc:.2f} MB (释放 {mem_after_index - mem_after_gc:.2f} MB)"
+    )
     logger.info(f"  总增长: {mem_after_gc - mem_before:.2f} MB")
     logger.info("=" * 60)
 

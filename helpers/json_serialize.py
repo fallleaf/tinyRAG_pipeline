@@ -1,4 +1,5 @@
 """utils/json_serialize.py - 统一 JSON 序列化工具（消除3处重复）"""
+
 from datetime import date, datetime
 from typing import Any
 

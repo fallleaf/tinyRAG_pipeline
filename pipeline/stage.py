@@ -9,6 +9,7 @@ Stage 是流水线中最小的处理单元。每个 Stage 接收 PipelineContext
 3. 可组合：Stage 之间通过 Context 解耦
 4. 可观测：通过 EventBus 发射事件
 """
+
 from __future__ import annotations
 
 import time
@@ -33,6 +34,7 @@ class StageStatus(str, Enum):
 @dataclass
 class StageResult:
     """Stage 执行结果"""
+
     status: StageStatus = StageStatus.PENDING
     message: str = ""
     duration_ms: float = 0.0
@@ -79,10 +81,13 @@ class Stage(ABC):
             logger.debug(f"⏭️ Stage [{self.name}] 跳过")
             return StageResult(status=StageStatus.SKIPPED, message="条件不满足，跳过")
 
-        self.event_bus.emit(StageEvent(
-            stage_name=self.name, event_type="start",
-            message=f"开始执行 {self.name}",
-        ))
+        self.event_bus.emit(
+            StageEvent(
+                stage_name=self.name,
+                event_type="start",
+                message=f"开始执行 {self.name}",
+            )
+        )
 
         start = time.perf_counter()
         try:
@@ -93,11 +98,14 @@ class Stage(ABC):
                 message=f"{self.name} 完成",
                 duration_ms=duration_ms,
             )
-            self.event_bus.emit(StageEvent(
-                stage_name=self.name, event_type="complete",
-                message=f"{self.name} 完成 ({duration_ms:.0f}ms)",
-                data={"duration_ms": duration_ms},
-            ))
+            self.event_bus.emit(
+                StageEvent(
+                    stage_name=self.name,
+                    event_type="complete",
+                    message=f"{self.name} 完成 ({duration_ms:.0f}ms)",
+                    data={"duration_ms": duration_ms},
+                )
+            )
         except Exception as e:
             duration_ms = (time.perf_counter() - start) * 1000
             result = StageResult(
@@ -106,11 +114,14 @@ class Stage(ABC):
                 duration_ms=duration_ms,
             )
             ctx.add_error(f"[{self.name}] {e}")
-            self.event_bus.emit(StageEvent(
-                stage_name=self.name, event_type="error",
-                message=f"{self.name} 失败: {e}",
-                data={"error": str(e)},
-            ))
+            self.event_bus.emit(
+                StageEvent(
+                    stage_name=self.name,
+                    event_type="error",
+                    message=f"{self.name} 失败: {e}",
+                    data={"error": str(e)},
+                )
+            )
             logger.error(f"❌ Stage [{self.name}] 失败: {e}", exc_info=True)
 
         return result

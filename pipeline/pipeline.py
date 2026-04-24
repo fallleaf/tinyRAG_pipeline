@@ -7,6 +7,7 @@ Pipeline 按顺序执行一组 Stage，管理生命周期和错误处理。
 2. 短路失败：某个 Stage 失败时，可选择停止或继续
 3. 可观测：通过 EventBus 发射 Pipeline 级别事件
 """
+
 from __future__ import annotations
 
 import time
@@ -22,6 +23,7 @@ from helpers.logger import logger
 @dataclass
 class PipelineResult:
     """Pipeline 执行结果"""
+
     success: bool = True
     total_stages: int = 0
     completed_stages: int = 0
@@ -56,7 +58,9 @@ class Pipeline:
         self.event_bus = event_bus or EventBus()
         self.fail_fast = fail_fast
 
-    def run(self, ctx: PipelineContext | None = None) -> tuple[PipelineResult, PipelineContext]:
+    def run(
+        self, ctx: PipelineContext | None = None
+    ) -> tuple[PipelineResult, PipelineContext]:
         """执行流水线
 
         Args:
@@ -68,10 +72,12 @@ class Pipeline:
             ctx = PipelineContext()
 
         ctx.start_time = time.time()
-        self.event_bus.emit(PipelineEvent(
-            event_type="start",
-            message=f"Pipeline [{self.name}] 启动，共 {len(self.stages)} 个 Stage",
-        ))
+        self.event_bus.emit(
+            PipelineEvent(
+                event_type="start",
+                message=f"Pipeline [{self.name}] 启动，共 {len(self.stages)} 个 Stage",
+            )
+        )
 
         logger.info(f"🚀 Pipeline [{self.name}] 启动，共 {len(self.stages)} 个 Stage")
 
@@ -89,16 +95,20 @@ class Pipeline:
             elif result.status == StageStatus.FAILED:
                 failed += 1
                 if self.fail_fast:
-                    logger.error(f"❌ Pipeline [{self.name}] 因 [{stage.name}] 失败而终止")
+                    logger.error(
+                        f"❌ Pipeline [{self.name}] 因 [{stage.name}] 失败而终止"
+                    )
                     break
             elif result.status == StageStatus.SKIPPED:
                 skipped += 1
 
-            self.event_bus.emit(PipelineEvent(
-                event_type="stage_complete",
-                message=f"Stage [{stage.name}] {result.status.value}",
-                data={"stage": stage.name, "status": result.status.value},
-            ))
+            self.event_bus.emit(
+                PipelineEvent(
+                    event_type="stage_complete",
+                    message=f"Stage [{stage.name}] {result.status.value}",
+                    data={"stage": stage.name, "status": result.status.value},
+                )
+            )
 
         ctx.finish()
         duration_ms = (time.time() - ctx.start_time) * 1000
@@ -115,12 +125,14 @@ class Pipeline:
         )
 
         event_type = "complete" if pipeline_result.success else "error"
-        self.event_bus.emit(PipelineEvent(
-            event_type=event_type,
-            message=f"Pipeline [{self.name}] {'完成' if pipeline_result.success else '失败'} "
-                    f"({completed}/{len(self.stages)} Stage, {duration_ms:.0f}ms)",
-            data=pipeline_result.__dict__,
-        ))
+        self.event_bus.emit(
+            PipelineEvent(
+                event_type=event_type,
+                message=f"Pipeline [{self.name}] {'完成' if pipeline_result.success else '失败'} "
+                f"({completed}/{len(self.stages)} Stage, {duration_ms:.0f}ms)",
+                data=pipeline_result.__dict__,
+            )
+        )
 
         if pipeline_result.success:
             logger.success(

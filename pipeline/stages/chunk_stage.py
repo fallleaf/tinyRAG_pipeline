@@ -44,7 +44,9 @@ class ChunkStage(Stage):
         # 使用生成器，避免累积所有 chunk
         def chunk_generator():
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                for f_id, chunks, f_path in executor.map(lambda f: _split_file(f), ctx.files_to_index):
+                for f_id, chunks, f_path in executor.map(
+                    lambda f: _split_file(f), ctx.files_to_index
+                ):
                     if chunks:
                         for c in chunks:
                             yield (f_id, c, f_path)

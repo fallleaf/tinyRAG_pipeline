@@ -47,6 +47,10 @@ models/
 *.gguf
 *.bin
 
+# Data (except jieba_user_dict.txt)
+data/
+!data/jieba_user_dict.txt
+
 # OS
 .DS_Store
 Thumbs.db
