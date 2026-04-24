@@ -2,9 +2,9 @@
 
 将待索引文件读取、分块，生成 file_chunks 列表。
 """
+
 from __future__ import annotations
 
-import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -50,5 +50,5 @@ class ChunkStage(Stage):
                             yield (f_id, c, f_path)
 
         ctx.file_chunks = chunk_generator()
-        logger.info(f"✂️ 分块完成: 准备流式处理 chunks")
+        logger.info("✂️ 分块完成: 准备流式处理 chunks")
         return ctx

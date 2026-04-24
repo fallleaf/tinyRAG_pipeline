@@ -4,6 +4,7 @@
 **核心消除重复**：这是原 tinyRAG 中 build_index.py / server.py / rag_cli.py
 三处重复的 chunk→embed→insert 逻辑的统一实现。
 """
+
 from __future__ import annotations
 
 import array
@@ -72,9 +73,7 @@ class IndexStage(Stage):
             db.conn.execute("PRAGMA synchronous = OFF;")
             for idx, (file_id, chunk, f_path, emb) in enumerate(batch):
                 chunk_idx = global_chunk_idx + offset + idx
-                metadata_json = json.dumps(
-                    chunk.metadata or {}, ensure_ascii=False, default=json_serialize
-                )
+                metadata_json = json.dumps(chunk.metadata or {}, ensure_ascii=False, default=json_serialize)
                 confidence_json = json.dumps(
                     chunk.confidence_metadata or {}, ensure_ascii=False, default=json_serialize
                 )
@@ -85,10 +84,17 @@ class IndexStage(Stage):
                      start_pos, end_pos, confidence_final_weight, metadata, confidence_json)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (
-                        file_id, chunk_idx, chunk.content, chunk.content_type.value,
-                        chunk.section_title, chunk.section_path,
-                        chunk.start_pos, chunk.end_pos, 1.0,
-                        metadata_json, confidence_json,
+                        file_id,
+                        chunk_idx,
+                        chunk.content,
+                        chunk.content_type.value,
+                        chunk.section_title,
+                        chunk.section_path,
+                        chunk.start_pos,
+                        chunk.end_pos,
+                        1.0,
+                        metadata_json,
+                        confidence_json,
                     ),
                 )
                 new_chunk_id = cursor.lastrowid

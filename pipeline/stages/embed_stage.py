@@ -2,6 +2,7 @@
 
 将 chunk 文本批量向量化，生成 chunk_embeddings 列表。
 """
+
 from __future__ import annotations
 
 from pipeline.context import PipelineContext
@@ -54,7 +55,7 @@ class EmbedStage(Stage):
                 yield from self._process_batch(batch, embed_engine, ctx)
 
         ctx.chunk_embeddings = embedding_generator()
-        logger.info(f"🔢 向量化完成: 准备流式处理向量")
+        logger.info("🔢 向量化完成: 准备流式处理向量")
         return ctx
 
     def _process_batch(self, batch: list, embed_engine, ctx: PipelineContext):
