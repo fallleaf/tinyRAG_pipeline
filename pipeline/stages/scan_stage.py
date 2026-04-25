@@ -81,6 +81,15 @@ class DiffStage(Stage):
                     "SELECT id, absolute_path, file_path, mtime FROM files WHERE is_deleted = 0"
                 ).fetchall()
             ]
+        elif getattr(ctx, "force_reembed", False):
+            # 强制重新生成向量：获取所有 chunks
+            logger.info("🔄 强制重新生成向量模式")
+            ctx.files_to_index = [
+                dict(row)
+                for row in db.conn.execute(
+                    "SELECT DISTINCT f.id, f.absolute_path, f.file_path, f.mtime FROM files f JOIN chunks c ON f.id = c.file_id WHERE f.is_deleted = 0"
+                ).fetchall()
+            ]
         else:
             # 增量模式：处理报告，获取变更文件
             ctx.scanner.process_report(report)

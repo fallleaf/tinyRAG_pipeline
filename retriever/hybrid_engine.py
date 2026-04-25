@@ -78,8 +78,8 @@ class HybridEngine:
         self.config = config
         self.db = db
         self.embed_engine = embed_engine
-        self.alpha = config.retrieval.get("alpha", 0.7) if config else 0.7
-        self.beta = config.retrieval.get("beta", 0.3) if config else 0.3
+        self.alpha = config.retrieval.alpha if config else 0.7
+        self.beta = config.retrieval.beta if config else 0.3
 
         # 双层缓存
         self._memory_cache: OrderedDict = OrderedDict()

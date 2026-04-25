@@ -35,7 +35,7 @@ class DBInitStage(Stage):
             ctx.config.db_path, vec_dimension=ctx.config.embedding_model.dimensions
         )
         ctx.db = db
-        logger.info(f"✅ 数据库连接初始化: {ctx.config.db_path}")
+        logger.info(f"✅ 数据库连接初始化：{ctx.config.db_path}")
         return ctx
 
 
@@ -49,19 +49,19 @@ class CleanupStage(Stage):
         if ctx.db is None:
             raise RuntimeError("数据库未初始化")
 
-        import vacuum as vac_mod
+        from vacuum import check_vacuum_needed, clean_deleted_records
 
-        stats = vac_mod.check_vacuum_needed(ctx.db, ctx.config)
+        stats = check_vacuum_needed(ctx.db, ctx.config)
         ctx.maintenance_stats = stats
 
         if ctx.dry_run:
             logger.info(
-                f"🔍 [Dry-Run] 预计清理: {stats['chunks_deleted']} chunks + {stats['files_deleted']} files"
+                f"🔍 [Dry-Run] 预计清理：{stats['chunks_deleted']} chunks + {stats['files_deleted']} files"
             )
         else:
-            vac_mod.clean_deleted_records(ctx.db, dry_run=False)
+            clean_deleted_records(ctx.db, dry_run=False)
             logger.info(
-                f"🧹 清理完成: {stats['chunks_deleted']} chunks + {stats['files_deleted']} files"
+                f"🧹 清理完成：{stats['chunks_deleted']} chunks + {stats['files_deleted']} files"
             )
 
         return ctx
@@ -80,15 +80,15 @@ class VacuumStage(Stage):
         if ctx.db is None:
             raise RuntimeError("数据库未初始化")
 
-        import vacuum as vac_mod
+        from vacuum import execute_vacuum
 
         old_size = os.path.getsize(ctx.config.db_path) / (1024 * 1024)
-        vac_mod.execute_vacuum(ctx.db, dry_run=False)
+        execute_vacuum(ctx.db, dry_run=False)
         new_size = os.path.getsize(ctx.config.db_path) / (1024 * 1024)
         saved = old_size - new_size
 
         logger.info(
-            f"🗜️ VACUUM 完成: {old_size:.2f}MB → {new_size:.2f}MB (节省 {saved:.2f}MB)"
+            f"🗜️ VACUUM 完成：{old_size:.2f}MB → {new_size:.2f}MB (节省 {saved:.2f}MB)"
         )
         ctx.maintenance_stats["vacuum_saved_mb"] = round(saved, 2)
         return ctx

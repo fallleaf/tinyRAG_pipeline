@@ -55,8 +55,8 @@ class SearchStage(Stage):
         elif ctx.search_mode == "semantic":
             alpha, beta = 1.0, 0.0
         elif alpha is None and beta is None:
-            alpha = config.retrieval.get("alpha", 0.7)
-            beta = config.retrieval.get("beta", 0.3)
+            alpha = config.retrieval.alpha
+            beta = config.retrieval.beta
 
         # vault 过滤
         vault_filter = ctx.vault_filter

@@ -4,7 +4,7 @@
 # ── tinyRAG 代码根目录 ──────────────────────────────
 # tinyRAG_pipeline 作为独立项目，不依赖 tinyRAG
 # 此配置已废弃，保留仅为兼容性
-tinyrag_root: null
+tinyrag_root: /home/fallleaf/tinyRAG_pipeline
 
 # ── 知识库 Vault ────────────────────────────────────
 vaults:
@@ -14,10 +14,19 @@ vaults:
     exclude:
       dirs:
         - "10.模板"
+        - "00.任务清单"
+        - "01.闪念"
+        - "02.收集"
+        - "03.日记"
+        - "05.工作"
+        - "06.学习"
+        - "07.项目"
+        - "08.技术"
+        - "08.资料"
       patterns: []
   - path: "/home/fallleaf/Obsidian"
     name: work
-    enabled: true
+    enabled: false
     exclude:
       dirs:
         - "copilot"
@@ -96,10 +105,10 @@ db_path: "./data/rag.db"
 
 # ── 嵌入模型 ────────────────────────────────────────
 embedding_model:
-  name: "BAAI/bge-small-zh-v1.5"
+  name: "jinaai/jina-embeddings-v2-base-zh"
   cache_dir: "./models"
-  size: "small"
-  dimensions: 512
+  size: "base"
+  dimensions: 768
   batch_size: 64
   unload_after_seconds: 300
 

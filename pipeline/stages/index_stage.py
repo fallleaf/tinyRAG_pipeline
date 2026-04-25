@@ -31,6 +31,24 @@ class IndexStage(Stage):
         if db is None:
             raise RuntimeError("数据库未初始化，请先运行 ScanStage")
 
+        # 检查是否需要强制重新生成向量
+        force_reembed = getattr(ctx, "force_reembed", False)
+
+        if force_reembed:
+            logger.info("🔄 强制重新生成向量模式：跳过 chunk 插入，仅插入向量")
+            self._index_vectors_only(ctx, db)
+        else:
+            # 正常索引流程
+            self._index_chunks_and_vectors(ctx, db)
+
+        # 最终内存检查
+        ctx.check_memory(force_gc=True)
+
+        logger.info(f"📥 索引入库完成: {ctx.total_indexed} 个 chunks")
+        return ctx
+
+    def _index_chunks_and_vectors(self, ctx: PipelineContext, db):
+        """正常索引流程：插入 chunks 和 vectors"""
         # 获取当前最大 chunk_index，避免冲突
         row = db.conn.execute(
             "SELECT COALESCE(MAX(chunk_index), -1) FROM chunks"
@@ -66,12 +84,39 @@ class IndexStage(Stage):
                 batch, db, global_chunk_idx, processed, ctx
             )
 
-        # 最终内存检查
-        ctx.check_memory(force_gc=True)
+        ctx.total_indexed = processed
+
+    def _index_vectors_only(self, ctx: PipelineContext, db):
+        """仅索引向量（force_reembed 模式）"""
+        # 按批提交（与 embedding 批大小对齐）
+        batch_size = ctx.config.embedding_model.batch_size
+        processed = 0
+        check_interval = ctx.memory_check_interval
+
+        # 流式处理，不累积所有结果
+        batch = []
+        for item in ctx.chunk_embeddings:
+            batch.append(item)
+            if len(batch) >= batch_size:
+                processed += self._process_vectors_batch(
+                    batch, db, processed, ctx
+                )
+                batch = []
+                # 释放内存
+                del batch
+                batch = []
+
+                # 定期检查内存使用
+                if processed % check_interval == 0:
+                    ctx.check_memory()
+
+        # 处理剩余的批次
+        if batch:
+            processed += self._process_vectors_batch(
+                batch, db, processed, ctx
+            )
 
         ctx.total_indexed = processed
-        logger.info(f"📥 索引入库完成: {processed} 个 chunks")
-        return ctx
 
     def _process_batch(
         self, batch: list, db, global_chunk_idx: int, offset: int, ctx: PipelineContext
@@ -111,12 +156,16 @@ class IndexStage(Stage):
                 )
                 new_chunk_id = cursor.lastrowid
 
-                # 向量入库
+                 # 向量入库
                 if db.vec_support:
-                    db.conn.execute(
-                        "INSERT INTO vectors (chunk_id, embedding) VALUES (?, ?)",
-                        (new_chunk_id, array.array("f", emb).tobytes()),
-                    )
+                    try:
+                        db.conn.execute(
+                            "INSERT INTO vectors (chunk_id, embedding) VALUES (?, ?)",
+                            (new_chunk_id, array.array("f", emb).tobytes()),
+                        )
+                    except Exception as e:
+                        logger.error(f"❌ 向量入库失败：{e}")
+                        raise
 
                 # FTS5 入库
                 db.conn.execute(
@@ -132,6 +181,41 @@ class IndexStage(Stage):
         except Exception as e:
             db.conn.rollback()
             ctx.add_error(f"批次入库失败: {e}")
+            raise
+        finally:
+            db.conn.execute("PRAGMA synchronous = NORMAL;")
+
+        return len(batch)
+
+    def _process_vectors_batch(
+        self, batch: list, db, offset: int, ctx: PipelineContext
+    ) -> int:
+        """处理单个向量批次，返回处理的数量（force_reembed 模式）"""
+        try:
+            db.conn.execute("PRAGMA synchronous = OFF;")
+            for idx, (file_id, chunk, f_path, emb) in enumerate(batch):
+                # 直接使用 chunk.id
+                chunk_id = chunk.id
+
+                # 向量入库
+                if db.vec_support:
+                    try:
+                        db.conn.execute(
+                            "INSERT OR IGNORE INTO vectors (chunk_id, embedding) VALUES (?, ?)",
+                            (chunk_id, array.array("f", emb).tobytes()),
+                        )
+                    except Exception as e:
+                        logger.error(f"❌ 向量入库失败：{e}")
+                        raise
+
+            db.conn.commit()
+
+            if not ctx.quiet:
+                logger.info(f"   💾 已入库 {offset + len(batch)} 向量")
+
+        except Exception as e:
+            db.conn.rollback()
+            ctx.add_error(f"向量批次入库失败: {e}")
             raise
         finally:
             db.conn.execute("PRAGMA synchronous = NORMAL;")

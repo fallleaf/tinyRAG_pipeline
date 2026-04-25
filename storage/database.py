@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS index_metadata (key TEXT PRIMARY KEY, value TEXT NOT 
 
 
 class DatabaseManager:
-    def __init__(self, db_path: str, vec_dimension: int = 512):
+    def __init__(self, db_path: str, vec_dimension: int = 768):
         self.db_path = db_path
         self.vec_dimension = vec_dimension
         self.conn: sqlite3.Connection | None = None
