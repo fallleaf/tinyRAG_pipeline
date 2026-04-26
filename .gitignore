@@ -37,6 +37,12 @@ env/
 *.db
 *.sqlite
 *.sqlite3
+# tinyRAG_pipeline specific database files
+rag.db
+cache.db
+rag.db-shm
+rag.db-wal
+storage/database.py.backup
 
 # Logs
 *.log
@@ -63,3 +69,5 @@ Thumbs.db
 *.bak
 *.cache
 *.zip
+# test vault
+vault

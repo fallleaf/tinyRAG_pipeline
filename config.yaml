@@ -10,20 +10,20 @@ tinyrag_root: /home/fallleaf/tinyRAG_pipeline
 vaults:
   - path: "~/tinyRAG_pipeline/vault"
     name: test
-    enabled: true
+    enabled: false
     exclude:
       dirs: []
       patterns: []
   - path: "~/NanobotMemory"
     name: personal
-    enabled: false
+    enabled: true
     exclude:
       dirs:
         - "10.模板"
       patterns: []
   - path: "/home/fallleaf/Obsidian"
     name: work
-    enabled: false
+    enabled: true
     exclude:
       dirs:
         - "copilot"
