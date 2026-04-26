@@ -24,3 +24,7 @@
 - 检索模式: {{search_mode}}
 - 返回条数: {{result_count}}
 - 检索耗时: {{elapsed}}s
+
+## 引用文档
+
+{{doc_list}}

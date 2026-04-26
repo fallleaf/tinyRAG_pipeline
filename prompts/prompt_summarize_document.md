@@ -13,7 +13,7 @@
 
 ## 文档信息
 
-- 文件路径: {{file_path}}
+- 文件路径: `{{file_path}}`
 - 文档类型: {{doc_type}}
 - 文档状态: {{status}}
 - 日期: {{final_date}}
