@@ -143,7 +143,12 @@ class DatabaseManager:
 
             query_blob = array.array("f", query_vector).tobytes()
             cursor = self.conn.execute(
-                "SELECT chunk_id, distance FROM vectors WHERE embedding MATCH ? ORDER BY distance LIMIT ?",
+                """SELECT v.chunk_id, v.distance
+                   FROM vectors v
+                   JOIN chunks c ON v.chunk_id = c.id
+                   WHERE v.embedding MATCH ? AND c.is_deleted = 0
+                   AND k = ?
+                   ORDER BY v.distance""",
                 (query_blob, limit),
             )
             return [(row[0], 1.0 / (1.0 + row[1])) for row in cursor.fetchall()]
@@ -164,7 +169,11 @@ class DatabaseManager:
         try:
             escaped_query = self.escape_fts5_query(keywords)
             cursor = self.conn.execute(
-                "SELECT rowid, rank FROM fts5_index WHERE fts5_index MATCH ? ORDER BY rank LIMIT ?",
+                """SELECT f.rowid, f.rank
+                   FROM fts5_index f
+                   JOIN chunks c ON f.rowid = c.id
+                   WHERE f.fts5_index MATCH ? AND c.is_deleted = 0
+                   ORDER BY f.rank LIMIT ?""",
                 (escaped_query, limit),
             )
             return [(row[0], -row[1]) for row in cursor.fetchall()]

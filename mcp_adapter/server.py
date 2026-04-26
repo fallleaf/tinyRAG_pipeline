@@ -129,6 +129,8 @@ class AppContext:
     def __init__(self):
         self.config = None
         self.db = None
+        self.vault_configs = []
+        self.vault_excludes = {}
         self._initialized = False
         self._lock = asyncio.Lock()
         self._background_tasks: list[asyncio.Task] = []
@@ -149,6 +151,8 @@ class AppContext:
             ctx = _run_pipeline_sync("init", [ConfigLoadStage(), ScanStage()], ctx)
             self.config = ctx.config
             self.db = ctx.db
+            self.vault_configs = ctx.vault_configs
+            self.vault_excludes = ctx.vault_excludes
             # 加载 Prompt 模板
             self._tpl_search = _load_prompt_template(
                 "prompt_search_with_context.md", DEFAULT_TPL_SEARCH
@@ -442,6 +446,8 @@ async def tool_scan_index(args: dict[str, Any], ctx: AppContext) -> dict[str, An
     pipeline_ctx = PipelineContext(
         config=ctx.config,
         db=ctx.db,
+        vault_configs=ctx.vault_configs,
+        vault_excludes=ctx.vault_excludes,
         force_rebuild=False,
         quiet=True,
     )
@@ -472,6 +478,8 @@ async def tool_rebuild_index(args: dict[str, Any], ctx: AppContext) -> dict[str,
             pipeline_ctx = PipelineContext(
                 config=ctx.config,
                 db=ctx.db,
+                vault_configs=ctx.vault_configs,
+                vault_excludes=ctx.vault_excludes,
                 force_rebuild=True,
                 quiet=True,
             )

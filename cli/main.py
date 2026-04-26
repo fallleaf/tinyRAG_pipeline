@@ -24,9 +24,8 @@ from pipeline.stages.scan_stage import ScanStage, DiffStage
 from pipeline.stages.chunk_stage import ChunkStage
 from pipeline.stages.embed_stage import EmbedStage
 from pipeline.stages.index_stage import IndexStage
-from pipeline.stages.maintenance_stage import CleanupStage, VacuumStage
+from pipeline.stages.maintenance_stage import DBInitStage, CleanupStage, VacuumStage
 from pipeline.stages.search_stage import SearchStage
-from helpers.logger import logger
 
 app = typer.Typer(help="tinyRAG_pipeline - 轻量级 RAG 系统")
 
@@ -67,10 +66,14 @@ def show_config(
     for v in config.vaults:
         typer.echo(f"   - {v.name}: {v.path} (启用：{v.enabled})")
 
-    typer.echo(f"\n🤖 模型：{config.embedding_model.name} (dim={config.embedding_model.dimensions})")
+    typer.echo(
+        f"\n🤖 模型：{config.embedding_model.name} (dim={config.embedding_model.dimensions})"
+    )
     typer.echo(f"🔍 检索：alpha={config.retrieval.alpha}, beta={config.retrieval.beta}")
     chunking = config.chunking
-    typer.echo(f"✂️ 分块：max_tokens={chunking.get('max_tokens', 512)}, overlap={chunking.get('overlap', 100)}")
+    typer.echo(
+        f"✂️ 分块：max_tokens={chunking.get('max_tokens', 512)}, overlap={chunking.get('overlap', 100)}"
+    )
 
 
 @app.command("rebuild")
@@ -121,6 +124,9 @@ def rebuild_index(
 
     # 重新构建
     ctx = PipelineContext(config_path=config_path)
+
+    # 强制重建模式：清空所有索引数据
+    ctx.force_rebuild = True
 
     # 如果需要重新生成所有向量，设置标志
     if reembed:
@@ -212,6 +218,20 @@ def search(
             help="检索模式：semantic/keyword/hybrid",
         ),
     ] = "hybrid",
+    alpha: Annotated[
+        float | None,
+        typer.Option(
+            "--alpha",
+            help="语义检索权重 (0.0-1.0)",
+        ),
+    ] = None,
+    beta: Annotated[
+        float | None,
+        typer.Option(
+            "--beta",
+            help="关键词检索权重 (0.0-1.0)",
+        ),
+    ] = None,
 ):
     """执行检索查询"""
     ctx = PipelineContext(
@@ -219,6 +239,8 @@ def search(
         query=query,
         top_k=top_k,
         search_mode=mode,
+        alpha=alpha,
+        beta=beta,
     )
 
     pipeline = Pipeline(
@@ -236,7 +258,11 @@ def search(
         for i, result in enumerate(ctx.search_results, 1):
             typer.echo(f"\n{i}. {result.file_path}")
             typer.echo(f"   内容：{result.content[:200]}...")
-            typer.echo(f"   得分：{result.final_score:.4f}")
+            typer.echo(f"   综合得分：{result.final_score:.4f}")
+            typer.echo(f"   语义得分：{result.semantic_score:.4f}")
+            typer.echo(f"   关键词得分：{result.keyword_score:.4f}")
+            typer.echo(f"   可信度得分：{result.confidence_score:.4f}")
+            typer.echo(f"   可信度原因：{result.confidence_reason}")
     else:
         typer.echo("📭 未找到匹配结果")
 
@@ -271,6 +297,7 @@ def maintenance(
 
     stages = [
         ConfigLoadStage(),
+        DBInitStage(),  # 初始化数据库连接
         CleanupStage(),
     ]
     if not clean_only:

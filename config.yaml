@@ -8,21 +8,18 @@ tinyrag_root: /home/fallleaf/tinyRAG_pipeline
 
 # ── 知识库 Vault ────────────────────────────────────
 vaults:
+  - path: "~/tinyRAG_pipeline/vault"
+    name: test
+    enabled: true
+    exclude:
+      dirs: []
+      patterns: []
   - path: "~/NanobotMemory"
     name: personal
-    enabled: true
+    enabled: false
     exclude:
       dirs:
         - "10.模板"
-        - "00.任务清单"
-        - "01.闪念"
-        - "02.收集"
-        - "03.日记"
-        - "05.工作"
-        - "06.学习"
-        - "07.项目"
-        - "08.技术"
-        - "08.资料"
       patterns: []
   - path: "/home/fallleaf/Obsidian"
     name: work
@@ -109,7 +106,7 @@ embedding_model:
   cache_dir: "./models"
   size: "base"
   dimensions: 768
-  batch_size: 64
+  batch_size: 32
   unload_after_seconds: 300
 
 # ── 分块 ────────────────────────────────────────────
