@@ -27,9 +27,7 @@ class SearchStage(Stage):
         config = ctx.config
         db = ctx.db
         if db is None:
-            db = DatabaseManager(
-                config.db_path, vec_dimension=config.embedding_model.dimensions
-            )
+            db = DatabaseManager(config.db_path, vec_dimension=config.embedding_model.dimensions)
             ctx.db = db
 
         embed_engine = ctx.embed_engine

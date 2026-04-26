@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """config.py - tinyRAG_pipeline 配置契约与加载层"""
 
-import re
 from pathlib import Path
 from typing import Any, Literal
 import yaml

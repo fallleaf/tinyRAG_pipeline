@@ -27,9 +27,7 @@ def cosine_sim(a: np.ndarray, b: np.ndarray) -> float:
     return np.dot(a, b) / (norm_a * norm_b)
 
 
-def deduplicate_chunks(
-    chunks_with_embeddings: List[Tuple[Any, np.ndarray]], threshold: float = 0.85
-) -> List[Any]:
+def deduplicate_chunks(chunks_with_embeddings: List[Tuple[Any, np.ndarray]], threshold: float = 0.85) -> List[Any]:
     """
     语义去重：移除相似度 > threshold 的 chunk
 

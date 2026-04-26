@@ -20,7 +20,7 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import Any
 
 # 确保项目路径在 sys.path
 _project_root = Path(__file__).parent.parent
@@ -39,8 +39,6 @@ from pipeline.stages import (
     EmbedStage,
     IndexStage,
     SearchStage,
-    CleanupStage,
-    VacuumStage,
 )
 from helpers.logger import setup_logger
 
@@ -56,7 +54,6 @@ try:
         PromptArgument,
         PromptMessage,
         ReadResourceResult,
-        Resource,
         ResourceTemplate,
         TextContent,
         TextResourceContents,
@@ -76,9 +73,7 @@ def _build_pipeline(name: str, stages: list) -> Pipeline:
     return Pipeline(name, stages, event_bus=EventBus())
 
 
-def _run_pipeline_sync(
-    name: str, stages: list, ctx: PipelineContext
-) -> PipelineContext:
+def _run_pipeline_sync(name: str, stages: list, ctx: PipelineContext) -> PipelineContext:
     """同步执行 Pipeline 并处理数据库关闭"""
     pipeline = _build_pipeline(name, stages)
     result, ctx = pipeline.run(ctx)
@@ -93,13 +88,9 @@ PROMPTS_DIR = _project_root / "prompts"
 
 # 默认模板（文件不存在时的回退）
 DEFAULT_TPL_SEARCH = (
-    "你是一个知识库助手。请基于以下检索结果回答用户问题。\n"
-    "## 用户问题\n{{query}}\n\n## 知识库检索结果\n{{context}}"
+    "你是一个知识库助手。请基于以下检索结果回答用户问题。\n" "## 用户问题\n{{query}}\n\n## 知识库检索结果\n{{context}}"
 )
-DEFAULT_TPL_SUMMARIZE = (
-    "请总结以下文档的核心内容。\n"
-    "## 文档信息\n路径: {{file_path}}\n\n## 文档内容\n{{content}}"
-)
+DEFAULT_TPL_SUMMARIZE = "请总结以下文档的核心内容。\n" "## 文档信息\n路径: {{file_path}}\n\n## 文档内容\n{{content}}"
 
 
 def _load_prompt_template(filename: str, default: str) -> str:
@@ -145,21 +136,15 @@ class AppContext:
             if self._initialized:
                 return
             # 使用 Pipeline 初始化配置和数据库
-            ctx = PipelineContext(
-                quiet=True, config_path=str(_project_root / "config.yaml")
-            )
+            ctx = PipelineContext(quiet=True, config_path=str(_project_root / "config.yaml"))
             ctx = _run_pipeline_sync("init", [ConfigLoadStage(), ScanStage()], ctx)
             self.config = ctx.config
             self.db = ctx.db
             self.vault_configs = ctx.vault_configs
             self.vault_excludes = ctx.vault_excludes
             # 加载 Prompt 模板
-            self._tpl_search = _load_prompt_template(
-                "prompt_search_with_context.md", DEFAULT_TPL_SEARCH
-            )
-            self._tpl_summarize = _load_prompt_template(
-                "prompt_summarize_document.md", DEFAULT_TPL_SUMMARIZE
-            )
+            self._tpl_search = _load_prompt_template("prompt_search_with_context.md", DEFAULT_TPL_SEARCH)
+            self._tpl_summarize = _load_prompt_template("prompt_summarize_document.md", DEFAULT_TPL_SUMMARIZE)
             self._initialized = True
             logger.info("MCP AppContext initialized via Pipeline")
 
@@ -239,9 +224,7 @@ def _format_search_context(results: list) -> str:
             score_info += f" 语义={r.semantic_score:.3f}"
         if hasattr(r, "keyword_score") and r.keyword_score is not None:
             score_info += f" 关键词={r.keyword_score:.3f}"
-        confidence = (
-            f"置信度={r.confidence_score:.2f}" if hasattr(r, "confidence_score") else ""
-        )
+        confidence = f"置信度={r.confidence_score:.2f}" if hasattr(r, "confidence_score") else ""
         lines.append(
             f"【文档 {i+1}】{r.absolute_path}\n"
             f"  章节: {getattr(r, 'section', '')}\n"
@@ -321,9 +304,7 @@ async def tool_search(args: dict[str, Any], ctx: AppContext) -> dict[str, Any]:
     beta = args.get("beta")
     vaults_arg = args.get("vaults")
 
-    results = _do_search(
-        ctx, query, top_k=top_k, alpha=alpha, beta=beta, mode=mode, vaults=vaults_arg
-    )
+    results = _do_search(ctx, query, top_k=top_k, alpha=alpha, beta=beta, mode=mode, vaults=vaults_arg)
 
     return {
         "query": query,
@@ -343,9 +324,7 @@ async def tool_search(args: dict[str, Any], ctx: AppContext) -> dict[str, Any]:
     }
 
 
-async def tool_search_with_context(
-    args: dict[str, Any], ctx: AppContext
-) -> dict[str, Any]:
+async def tool_search_with_context(args: dict[str, Any], ctx: AppContext) -> dict[str, Any]:
     """检索+上下文 Tool - 执行搜索并返回格式化的 Prompt 上下文
 
     与 search Tool 的区别：
@@ -362,9 +341,7 @@ async def tool_search_with_context(
     vaults_arg = args.get("vaults")
 
     start = time.time()
-    results = _do_search(
-        ctx, query, top_k=top_k, alpha=alpha, beta=beta, mode=mode, vaults=vaults_arg
-    )
+    results = _do_search(ctx, query, top_k=top_k, alpha=alpha, beta=beta, mode=mode, vaults=vaults_arg)
     elapsed = round(time.time() - start, 3)
 
     # 格式化上下文
@@ -388,15 +365,12 @@ async def tool_search_with_context(
         "elapsed": elapsed,
         "prompt": prompt_text,
         "results_summary": [
-            {"rank": i + 1, "file": r.file_path, "score": round(r.final_score, 4)}
-            for i, r in enumerate(results)
+            {"rank": i + 1, "file": r.file_path, "score": round(r.final_score, 4)} for i, r in enumerate(results)
         ],
     }
 
 
-async def tool_summarize_document(
-    args: dict[str, Any], ctx: AppContext
-) -> dict[str, Any]:
+async def tool_summarize_document(args: dict[str, Any], ctx: AppContext) -> dict[str, Any]:
     """文档摘要 Tool - 获取文档全部内容并渲染摘要 Prompt
 
     输入文件路径，输出已渲染的摘要 Prompt 文本，可直接注入 LLM 对话。
@@ -504,15 +478,11 @@ async def tool_stats(args: dict[str, Any], ctx: AppContext) -> dict[str, Any]:
     """统计 Tool"""
     await ctx.initialize()
     db = ctx.db
-    files_total = db.conn.execute(
-        "SELECT COUNT(*) FROM files WHERE is_deleted=0"
-    ).fetchone()[0]
+    files_total = db.conn.execute("SELECT COUNT(*) FROM files WHERE is_deleted=0").fetchone()[0]
     files_by_vault = db.conn.execute(
         "SELECT vault_name, COUNT(*) as cnt FROM files WHERE is_deleted=0 GROUP BY vault_name"
     ).fetchall()
-    chunks_total = db.conn.execute(
-        "SELECT COUNT(*) FROM chunks WHERE is_deleted=0"
-    ).fetchone()[0]
+    chunks_total = db.conn.execute("SELECT COUNT(*) FROM chunks WHERE is_deleted=0").fetchone()[0]
     try:
         vectors_total = db.conn.execute("SELECT COUNT(*) FROM vectors").fetchone()[0]
     except Exception:
@@ -654,23 +624,15 @@ PROMPT_DEFINITIONS = [
         description="RAG 检索回答 Prompt - 执行检索并将结果渲染为 LLM 可用的上下文提示",
         arguments=[
             PromptArgument(name="query", description="搜索关键词", required=True),
-            PromptArgument(
-                name="top_k", description="返回结果数量 (默认5)", required=False
-            ),
+            PromptArgument(name="top_k", description="返回结果数量 (默认5)", required=False),
             PromptArgument(
                 name="mode",
                 description="检索模式: hybrid/keyword/semantic",
                 required=False,
             ),
-            PromptArgument(
-                name="alpha", description="语义权重 (0.0-1.0)", required=False
-            ),
-            PromptArgument(
-                name="beta", description="关键词权重 (0.0-1.0)", required=False
-            ),
-            PromptArgument(
-                name="vaults", description="指定仓库 (逗号分隔)", required=False
-            ),
+            PromptArgument(name="alpha", description="语义权重 (0.0-1.0)", required=False),
+            PromptArgument(name="beta", description="关键词权重 (0.0-1.0)", required=False),
+            PromptArgument(name="vaults", description="指定仓库 (逗号分隔)", required=False),
         ],
     ),
     Prompt(
@@ -683,9 +645,7 @@ PROMPT_DEFINITIONS = [
 ]
 
 
-async def handle_get_prompt(
-    name: str, arguments: dict[str, str], ctx: AppContext
-) -> GetPromptResult:
+async def handle_get_prompt(name: str, arguments: dict[str, str], ctx: AppContext) -> GetPromptResult:
     """处理 MCP get_prompt 请求"""
     await ctx.initialize()
 
@@ -697,9 +657,7 @@ async def handle_get_prompt(
         raise ValueError(f"Unknown prompt: {name}")
 
 
-def _prompt_search_with_context(
-    args: dict[str, str], ctx: AppContext
-) -> GetPromptResult:
+def _prompt_search_with_context(args: dict[str, str], ctx: AppContext) -> GetPromptResult:
     """渲染 search_with_context Prompt"""
     query = args.get("query", "")
     top_k = int(args.get("top_k", "5"))
@@ -716,9 +674,7 @@ def _prompt_search_with_context(
         vaults_arg = [v.strip() for v in vaults_str.split(",") if v.strip()]
 
     start = time.time()
-    results = _do_search(
-        ctx, query, top_k=top_k, alpha=alpha, beta=beta, mode=mode, vaults=vaults_arg
-    )
+    results = _do_search(ctx, query, top_k=top_k, alpha=alpha, beta=beta, mode=mode, vaults=vaults_arg)
     elapsed = round(time.time() - start, 3)
 
     context_text = _format_search_context(results)
@@ -745,9 +701,7 @@ def _prompt_search_with_context(
     )
 
 
-def _prompt_summarize_document(
-    args: dict[str, str], ctx: AppContext
-) -> GetPromptResult:
+def _prompt_summarize_document(args: dict[str, str], ctx: AppContext) -> GetPromptResult:
     """渲染 summarize_document Prompt"""
     file_path = args.get("file_path", "")
     if not file_path:
@@ -756,9 +710,7 @@ def _prompt_summarize_document(
             messages=[
                 PromptMessage(
                     role="user",
-                    content=TextContent(
-                        type="text", text="错误：file_path 参数不能为空"
-                    ),
+                    content=TextContent(type="text", text="错误：file_path 参数不能为空"),
                 )
             ],
         )
@@ -770,9 +722,7 @@ def _prompt_summarize_document(
             messages=[
                 PromptMessage(
                     role="user",
-                    content=TextContent(
-                        type="text", text=f"错误：未找到文件 {file_path}"
-                    ),
+                    content=TextContent(type="text", text=f"错误：未找到文件 {file_path}"),
                 )
             ],
         )
@@ -843,11 +793,7 @@ async def handle_read_resource(uri: Any, ctx: AppContext) -> ReadResourceResult:
     else:
         raise ValueError(f"Unknown resource URI: {uri_str}")
 
-    return ReadResourceResult(
-        contents=[
-            TextResourceContents(uri=uri_str, mimeType="application/json", text=content)
-        ]
-    )
+    return ReadResourceResult(contents=[TextResourceContents(uri=uri_str, mimeType="application/json", text=content)])
 
 
 def _resource_vault_stats(vault_name: str, ctx: AppContext) -> str:
@@ -857,8 +803,7 @@ def _resource_vault_stats(vault_name: str, ctx: AppContext) -> str:
         (vault_name,),
     ).fetchone()[0]
     chunks_count = db.conn.execute(
-        "SELECT COUNT(*) FROM chunks c JOIN files f ON c.file_id = f.id "
-        "WHERE f.vault_name = ? AND c.is_deleted = 0",
+        "SELECT COUNT(*) FROM chunks c JOIN files f ON c.file_id = f.id " "WHERE f.vault_name = ? AND c.is_deleted = 0",
         (vault_name,),
     ).fetchone()[0]
     recent = db.conn.execute(
@@ -883,9 +828,7 @@ def _resource_file_content(file_id: str, ctx: AppContext) -> str:
         fid = int(file_id)
     except (ValueError, TypeError):
         return json.dumps({"error": "Invalid file_id"})
-    row = ctx.db.conn.execute(
-        "SELECT * FROM files WHERE id = ? AND is_deleted = 0", (fid,)
-    ).fetchone()
+    row = ctx.db.conn.execute("SELECT * FROM files WHERE id = ? AND is_deleted = 0", (fid,)).fetchone()
     if not row:
         return json.dumps({"error": "File not found"})
     try:
@@ -948,11 +891,7 @@ class PipelineMcpServer:
         async def call_tool(name: str, arguments: dict[str, Any]):
             handler = TOOL_HANDLERS.get(name)
             if not handler:
-                return [
-                    TextContent(
-                        type="text", text=json.dumps({"error": f"Unknown tool: {name}"})
-                    )
-                ]
+                return [TextContent(type="text", text=json.dumps({"error": f"Unknown tool: {name}"}))]
             try:
                 result = await handler(arguments, self.ctx)
                 return [
@@ -986,9 +925,7 @@ class PipelineMcpServer:
                     messages=[
                         PromptMessage(
                             role="user",
-                            content=TextContent(
-                                type="text", text=f"Prompt 渲染错误: {str(e)}"
-                            ),
+                            content=TextContent(type="text", text=f"Prompt 渲染错误: {str(e)}"),
                         )
                     ],
                 )

@@ -38,9 +38,7 @@ class EmbeddingEngine:
                 # 进度日志降级为 DEBUG，仅用于文件日志调试，不干扰终端动画
                 if (i + self.batch_size) % 100 == 0 or i == 0:
                     elapsed = time.time() - start_time
-                    logger.debug(
-                        f"  已处理 {i + self.batch_size}/{len(texts)} 条 ({elapsed:.2f}s)"
-                    )
+                    logger.debug(f"  已处理 {i + self.batch_size}/{len(texts)} 条 ({elapsed:.2f}s)")
             except Exception as e:
                 # 🔴 P0 修复：严格禁止 continue，防止批次错位导致向量与 Chunk 不匹配
                 logger.error(f"❌ 批次 {i // self.batch_size} 处理失败: {e}")

@@ -6,9 +6,6 @@ DiffStage: 根据 ScanReport 确定待索引文件列表
 
 from __future__ import annotations
 
-import sys
-import time
-from pathlib import Path
 
 from pipeline.context import PipelineContext
 from pipeline.stage import Stage
@@ -22,32 +19,25 @@ class ScanStage(Stage):
     description = "扫描 vault 目录，生成变更报告"
 
     def process(self, ctx: PipelineContext) -> PipelineContext:
-        from config import get_merged_exclude
         from scanner.scan_engine import DEFAULT_SKIP_DIRS, Scanner
         from storage.database import DatabaseManager
 
         config = ctx.config
         # 复用已存在的数据库连接，避免在 MCP 场景下重复创建导致 disk I/O error
         if ctx.db is None:
-            db = DatabaseManager(
-                config.db_path, vec_dimension=config.embedding_model.dimensions
-            )
+            db = DatabaseManager(config.db_path, vec_dimension=config.embedding_model.dimensions)
             ctx.db = db
         else:
             db = ctx.db
 
         global_skip_dirs = DEFAULT_SKIP_DIRS | frozenset(config.exclude.dirs)
-        scanner = Scanner(
-            db, skip_dirs=global_skip_dirs, global_patterns=config.exclude.patterns
-        )
+        scanner = Scanner(db, skip_dirs=global_skip_dirs, global_patterns=config.exclude.patterns)
         ctx.scanner = scanner
 
         if ctx.force_rebuild:
             logger.info("🔄 强制重建模式：清空所有索引数据")
             db.conn.execute("DELETE FROM fts5_index")
-            cursor = db.conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='vectors'"
-            )
+            cursor = db.conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='vectors'")
             if cursor.fetchone():
                 db.conn.execute("DELETE FROM vectors")
             db.conn.execute("DELETE FROM chunks")
@@ -97,9 +87,7 @@ class DiffStage(Stage):
         else:
             # 增量模式：处理报告，获取变更文件
             ctx.scanner.process_report(report)
-            ctx.changed_paths = [
-                f.absolute_path for f in report.new_files + report.modified_files
-            ]
+            ctx.changed_paths = [f.absolute_path for f in report.new_files + report.modified_files]
             ctx.changed_paths.extend([f.new_absolute_path for f in report.moved_files])
 
             ctx.files_to_index = []
@@ -122,9 +110,7 @@ class DiffStage(Stage):
                 """)
                 missing = [dict(row) for row in cursor.fetchall()]
                 if missing:
-                    logger.info(
-                        f"🔧 发现 {len(missing)} 个已注册但无索引的文件，准备补充"
-                    )
+                    logger.info(f"🔧 发现 {len(missing)} 个已注册但无索引的文件，准备补充")
                     ctx.files_to_index.extend(missing)
 
         if not ctx.files_to_index:

@@ -45,6 +45,7 @@ class ChunkStage(Stage):
 
     def _split_files(self, ctx: PipelineContext, max_workers: int):
         """正常分块流程"""
+
         def _split_file(file_item: dict) -> tuple[int, list, str]:
             abs_path = Path(file_item["absolute_path"])
             if not abs_path.exists():
@@ -59,9 +60,7 @@ class ChunkStage(Stage):
 
         def chunk_generator():
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                for f_id, chunks, f_path in executor.map(
-                    lambda f: _split_file(f), ctx.files_to_index
-                ):
+                for f_id, chunks, f_path in executor.map(lambda f: _split_file(f), ctx.files_to_index):
                     if chunks:
                         for c in chunks:
                             yield (f_id, c, f_path)

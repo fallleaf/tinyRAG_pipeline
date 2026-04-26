@@ -35,9 +35,7 @@ class PipelineContext:
     # ── 扫描阶段 ──────────────────────────
     scan_report: Any = None  # ScanReport
     vault_configs: list[tuple[str, str]] = field(default_factory=list)  # [(name, path)]
-    vault_excludes: dict[str, tuple[frozenset[str], list[str]]] = field(
-        default_factory=dict
-    )
+    vault_excludes: dict[str, tuple[frozenset[str], list[str]]] = field(default_factory=dict)
 
     # ── 差异阶段 ──────────────────────────
     changed_paths: list[str] = field(default_factory=list)
@@ -46,9 +44,7 @@ class PipelineContext:
 
     # ── 分块阶段 ──────────────────────────
     splitter: Any = None  # MarkdownSplitter
-    file_chunks: list[tuple[int, Any, str]] = field(
-        default_factory=list
-    )  # [(file_id, Chunk, file_path)]
+    file_chunks: list[tuple[int, Any, str]] = field(default_factory=list)  # [(file_id, Chunk, file_path)]
     total_files_with_chunks: int = 0
 
     # ── 向量化阶段 ────────────────────────
@@ -132,9 +128,7 @@ class PipelineContext:
 
             # 如果内存使用超过限制，强制垃圾回收
             if rss_mb > self.memory_limit_mb or force_gc:
-                logger.warning(
-                    f"⚠️ 内存使用过高: {rss_mb:.2f} MB / {self.memory_limit_mb} MB"
-                )
+                logger.warning(f"⚠️ 内存使用过高: {rss_mb:.2f} MB / {self.memory_limit_mb} MB")
                 gc.collect()
                 mem_info_after = process.memory_info()
                 rss_mb_after = mem_info_after.rss / 1024 / 1024

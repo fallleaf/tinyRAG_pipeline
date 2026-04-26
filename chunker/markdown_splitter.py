@@ -116,10 +116,7 @@ class MarkdownSplitter:
         other_chars = len(text) - chinese_chars
 
         # 使用配置化的字符/token 比例
-        return int(
-            chinese_chars / self.chinese_chars_per_token
-            + other_chars / self.english_chars_per_token
-        )
+        return int(chinese_chars / self.chinese_chars_per_token + other_chars / self.english_chars_per_token)
 
     def _estimate_chars_for_tokens(self, tokens: int, sample_text: str = None) -> int:
         """
@@ -169,9 +166,7 @@ class MarkdownSplitter:
                     )
                 ]
             # 极端超长，需要切分
-            logger.warning(
-                f"⚠️ {c_type.value} 类型 chunk 严重超限 ({token_count} > {self.max_tokens * 2})，强制切分"
-            )
+            logger.warning(f"⚠️ {c_type.value} 类型 chunk 严重超限 ({token_count} > {self.max_tokens * 2})，强制切分")
 
         # TEXT/HEADER 类型 或 极端超长的 CODE/TABLE/LIST：按句子边界切分
         chunks = []
@@ -237,9 +232,7 @@ class MarkdownSplitter:
 
                 current_text = ""
                 current_start = (
-                    s_pos + len(text[: text.find(sentence) + len(sentence)])
-                    if sentence in text
-                    else current_start
+                    s_pos + len(text[: text.find(sentence) + len(sentence)]) if sentence in text else current_start
                 )
 
             elif test_tokens > self.max_tokens and current_text.strip():
@@ -257,11 +250,7 @@ class MarkdownSplitter:
                     )
                 )
                 current_text = sentence
-                current_start = (
-                    s_pos + len(text[: text.find(sentence)])
-                    if sentence in text
-                    else current_start
-                )
+                current_start = s_pos + len(text[: text.find(sentence)]) if sentence in text else current_start
             else:
                 current_text = test_text
 
@@ -323,9 +312,7 @@ class MarkdownSplitter:
             token_count = self._count_tokens(chunk_text)
             if token_count > self.max_tokens:
                 # 超限则进行二次切分
-                return self._split_long_content(
-                    chunk_text, c_type, s_stack, s_pos, frontmatter, conf_meta
-                )
+                return self._split_long_content(chunk_text, c_type, s_stack, s_pos, frontmatter, conf_meta)
 
             s_title = s_stack[-1] if s_stack else None
             s_path = " / ".join(s_stack) if s_stack else "Root"
@@ -345,9 +332,7 @@ class MarkdownSplitter:
 
         return self._process_lines(content_body, create_chunks)
 
-    def _extract_confidence_meta(
-        self, frontmatter: dict, file_mtime: float | None
-    ) -> dict:
+    def _extract_confidence_meta(self, frontmatter: dict, file_mtime: float | None) -> dict:
         """
         实现 1、2、5 点设想：提取原始因子并注入缺省值
         """
@@ -585,10 +570,6 @@ class MarkdownSplitter:
 
         # 刷出最后残留
         if current_buffer:
-            chunks.extend(
-                create_chunks(
-                    current_buffer, current_type, section_stack, start_pos, current_pos
-                )
-            )
+            chunks.extend(create_chunks(current_buffer, current_type, section_stack, start_pos, current_pos))
 
         return chunks

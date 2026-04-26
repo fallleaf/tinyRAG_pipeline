@@ -8,8 +8,6 @@ VacuumStage: 执行 VACUUM 回收空间
 from __future__ import annotations
 
 import os
-import sys
-from pathlib import Path
 
 from pipeline.context import PipelineContext
 from pipeline.stage import Stage
@@ -31,9 +29,7 @@ class DBInitStage(Stage):
 
         from storage.database import DatabaseManager
 
-        db = DatabaseManager(
-            ctx.config.db_path, vec_dimension=ctx.config.embedding_model.dimensions
-        )
+        db = DatabaseManager(ctx.config.db_path, vec_dimension=ctx.config.embedding_model.dimensions)
         ctx.db = db
         logger.info(f"✅ 数据库连接初始化：{ctx.config.db_path}")
         return ctx
@@ -55,14 +51,10 @@ class CleanupStage(Stage):
         ctx.maintenance_stats = stats
 
         if ctx.dry_run:
-            logger.info(
-                f"🔍 [Dry-Run] 预计清理：{stats['chunks_deleted']} chunks + {stats['files_deleted']} files"
-            )
+            logger.info(f"🔍 [Dry-Run] 预计清理：{stats['chunks_deleted']} chunks + {stats['files_deleted']} files")
         else:
             clean_deleted_records(ctx.db, dry_run=False)
-            logger.info(
-                f"🧹 清理完成：{stats['chunks_deleted']} chunks + {stats['files_deleted']} files"
-            )
+            logger.info(f"🧹 清理完成：{stats['chunks_deleted']} chunks + {stats['files_deleted']} files")
 
         return ctx
 
@@ -87,8 +79,6 @@ class VacuumStage(Stage):
         new_size = os.path.getsize(ctx.config.db_path) / (1024 * 1024)
         saved = old_size - new_size
 
-        logger.info(
-            f"🗜️ VACUUM 完成：{old_size:.2f}MB → {new_size:.2f}MB (节省 {saved:.2f}MB)"
-        )
+        logger.info(f"🗜️ VACUUM 完成：{old_size:.2f}MB → {new_size:.2f}MB (节省 {saved:.2f}MB)")
         ctx.maintenance_stats["vacuum_saved_mb"] = round(saved, 2)
         return ctx

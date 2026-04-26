@@ -177,9 +177,7 @@ class Scanner:
                 logger.warning(f"⚠️ Vault 路径不存在：{vault_path}")
                 continue
 
-            vault_skip_dirs, vault_patterns = vault_excludes.get(
-                vault_name, (frozenset(), [])
-            )
+            vault_skip_dirs, vault_patterns = vault_excludes.get(vault_name, (frozenset(), []))
 
             # 合并规则：全局 + Vault 级
             all_skip_dirs = self._skip_dirs | vault_skip_dirs
@@ -189,9 +187,7 @@ class Scanner:
             logger.info(f"📂 扫描 {vault_name}")
             logger.info(f"   🚫 生效排除目录: {sorted(list(all_skip_dirs))}")
             if all_patterns:
-                logger.info(
-                    f"   🚫 生效排除模式: {sorted(all_patterns)[:5]}... (共{len(all_patterns)}条)"
-                )
+                logger.info(f"   🚫 生效排除模式: {sorted(all_patterns)[:5]}... (共{len(all_patterns)}条)")
             for root, dirs, files in os.walk(vault_path):
                 dirs[:] = sorted(d for d in dirs if d not in all_skip_dirs)
                 for fname in sorted(files):
@@ -247,9 +243,7 @@ class Scanner:
             f"FROM files WHERE is_deleted = 0 AND vault_name IN ({placeholders})"
         )
         cursor = self.db.conn.execute(sql, scanned_vaults)
-        db_files: dict[str, dict[str, Any]] = {
-            row["absolute_path"]: dict(row) for row in cursor.fetchall()
-        }
+        db_files: dict[str, dict[str, Any]] = {row["absolute_path"]: dict(row) for row in cursor.fetchall()}
 
         # ═══ 阶段 1：轻量路径收集 ═══
         disk_files = self._walk_vaults(vault_configs, vault_excludes)
@@ -257,9 +251,7 @@ class Scanner:
         db_paths = set(db_files.keys())
 
         # 消失文件集：DB 中有但磁盘上没有（可能被删除或被移动到其他位置）
-        disappeared: dict[str, dict[str, Any]] = {
-            ap: meta for ap, meta in db_files.items() if ap not in disk_paths
-        }
+        disappeared: dict[str, dict[str, Any]] = {ap: meta for ap, meta in db_files.items() if ap not in disk_paths}
 
         # hash → 消失文件的反向索引（每个 hash 只保留首个匹配，避免歧义）
         disappeared_by_hash: dict[str, dict[str, Any]] = {}
@@ -283,9 +275,7 @@ class Scanner:
 
             if new_hash != db_meta["file_hash"]:
                 # 内容确实变化 → 标记为修改
-                report.modified_files.append(
-                    FileMeta(vault_name, rel_path, abs_path, new_hash, size, mtime)
-                )
+                report.modified_files.append(FileMeta(vault_name, rel_path, abs_path, new_hash, size, mtime))
                 logger.info(f"📝 检测到内容修改：{rel_path}")
             else:
                 # mtime/size 变化但内容未变 → 仅更新时间戳
@@ -315,15 +305,11 @@ class Scanner:
                         new_file_size=size,
                     )
                 )
-                logger.info(
-                    f"🔄 检测到文件移动：{src['vault_name']}/{src['file_path']} → {vault_name}/{rel_path}"
-                )
+                logger.info(f"🔄 检测到文件移动：{src['vault_name']}/{src['file_path']} → {vault_name}/{rel_path}")
                 # 从消失集中移除，避免同一源文件被重复匹配
                 disappeared.pop(src["absolute_path"], None)
             else:
-                report.new_files.append(
-                    FileMeta(vault_name, rel_path, abs_path, new_hash, size, mtime)
-                )
+                report.new_files.append(FileMeta(vault_name, rel_path, abs_path, new_hash, size, mtime))
                 logger.info(f"➕ 检测到新文件：{rel_path}")
 
         # ═══ 阶段 2c：删除检测 — 未被匹配为移动源的消失文件 ═══

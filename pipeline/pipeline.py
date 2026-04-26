@@ -58,9 +58,7 @@ class Pipeline:
         self.event_bus = event_bus or EventBus()
         self.fail_fast = fail_fast
 
-    def run(
-        self, ctx: PipelineContext | None = None
-    ) -> tuple[PipelineResult, PipelineContext]:
+    def run(self, ctx: PipelineContext | None = None) -> tuple[PipelineResult, PipelineContext]:
         """执行流水线
 
         Args:
@@ -95,9 +93,7 @@ class Pipeline:
             elif result.status == StageStatus.FAILED:
                 failed += 1
                 if self.fail_fast:
-                    logger.error(
-                        f"❌ Pipeline [{self.name}] 因 [{stage.name}] 失败而终止"
-                    )
+                    logger.error(f"❌ Pipeline [{self.name}] 因 [{stage.name}] 失败而终止")
                     break
             elif result.status == StageStatus.SKIPPED:
                 skipped += 1
@@ -136,8 +132,7 @@ class Pipeline:
 
         if pipeline_result.success:
             logger.success(
-                f"🎉 Pipeline [{self.name}] 完成 "
-                f"({completed} 完成, {skipped} 跳过, {duration_ms:.0f}ms)"
+                f"🎉 Pipeline [{self.name}] 完成 " f"({completed} 完成, {skipped} 跳过, {duration_ms:.0f}ms)"
             )
         else:
             logger.error(f"❌ Pipeline [{self.name}] 失败 ({failed} 个 Stage 出错)")

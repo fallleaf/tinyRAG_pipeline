@@ -37,11 +37,7 @@ def version_callback(value: bool):
 
 
 @app.callback()
-def main(
-    version: bool = typer.Option(
-        None, "--version", callback=version_callback, help="显示版本信息"
-    )
-):
+def main(version: bool = typer.Option(None, "--version", callback=version_callback, help="显示版本信息")):
     pass
 
 
@@ -66,14 +62,10 @@ def show_config(
     for v in config.vaults:
         typer.echo(f"   - {v.name}: {v.path} (启用：{v.enabled})")
 
-    typer.echo(
-        f"\n🤖 模型：{config.embedding_model.name} (dim={config.embedding_model.dimensions})"
-    )
+    typer.echo(f"\n🤖 模型：{config.embedding_model.name} (dim={config.embedding_model.dimensions})")
     typer.echo(f"🔍 检索：alpha={config.retrieval.alpha}, beta={config.retrieval.beta}")
     chunking = config.chunking
-    typer.echo(
-        f"✂️ 分块：max_tokens={chunking.get('max_tokens', 512)}, overlap={chunking.get('overlap', 100)}"
-    )
+    typer.echo(f"✂️ 分块：max_tokens={chunking.get('max_tokens', 512)}, overlap={chunking.get('overlap', 100)}")
 
 
 @app.command("rebuild")

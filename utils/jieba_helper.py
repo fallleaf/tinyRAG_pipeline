@@ -24,9 +24,7 @@ except ImportError:
     JIEBA_AVAILABLE = False
     logger.warning("⚠️ jieba 未安装，分词功能将降级")
 
-_DATE_PATTERN = re.compile(
-    r"\d{4}(?:-\d{2}(?:-\d{2})?|年(?:\d{1,2}(?:月(?:\d{1,2}日)?)?)?)"
-)
+_DATE_PATTERN = re.compile(r"\d{4}(?:-\d{2}(?:-\d{2})?|年(?:\d{1,2}(?:月(?:\d{1,2}日)?)?)?)")
 # 支持 jieba 将 DATE 拆分为 DA TE / D A T E 等格式，以及数字被拆分为 1 0 等
 _BROKEN_DATE_RE = re.compile(r"__\s*D\s*A\s*T\s*E\s*_\s*([\d\s]+)\s*__")
 _DOT_SPACING_RE = re.compile(r"\s*\.\s*")
@@ -90,9 +88,7 @@ def jieba_segment(text: str) -> str:
         protected_text = protected_text.replace(match.group(), placeholder, 1)
 
     segmented = _do_segment(protected_text)
-    segmented = _BROKEN_DATE_RE.sub(
-        lambda m: "__DATE_" + re.sub(r"\s+", "", m.group(1)) + "__", segmented
-    )
+    segmented = _BROKEN_DATE_RE.sub(lambda m: "__DATE_" + re.sub(r"\s+", "", m.group(1)) + "__", segmented)
     for ph, date_str in date_placeholders.items():
         segmented = segmented.replace(ph, date_str)
     return _DOT_SPACING_RE.sub(".", segmented)

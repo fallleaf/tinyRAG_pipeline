@@ -42,20 +42,12 @@ class ConfigLoadStage(Stage):
 
             # 将配置中的相对路径转为绝对路径（基于 config_dir），
             # 这样后续 Stage 在任何 CWD 下都能正确访问
-            if (
-                config.jieba_user_dict
-                and not Path(config.jieba_user_dict).is_absolute()
-            ):
+            if config.jieba_user_dict and not Path(config.jieba_user_dict).is_absolute():
                 config.jieba_user_dict = str(config_dir / config.jieba_user_dict)
             if config.db_path and not Path(config.db_path).is_absolute():
                 config.db_path = str(config_dir / config.db_path)
-            if (
-                config.embedding_model.cache_dir
-                and not Path(config.embedding_model.cache_dir).is_absolute()
-            ):
-                config.embedding_model.cache_dir = str(
-                    config_dir / config.embedding_model.cache_dir
-                )
+            if config.embedding_model.cache_dir and not Path(config.embedding_model.cache_dir).is_absolute():
+                config.embedding_model.cache_dir = str(config_dir / config.embedding_model.cache_dir)
         finally:
             os.chdir(original_cwd)
 
@@ -68,9 +60,7 @@ class ConfigLoadStage(Stage):
         for v in config.vaults:
             if v.enabled:
                 ctx.vault_excludes[v.name] = (
-                    (frozenset(v.exclude.dirs), v.exclude.patterns)
-                    if v.exclude
-                    else (frozenset(), [])
+                    (frozenset(v.exclude.dirs), v.exclude.patterns) if v.exclude else (frozenset(), [])
                 )
 
         logger.info(f"✅ 配置加载成功：{config_path}")

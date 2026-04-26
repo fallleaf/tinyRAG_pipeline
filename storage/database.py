@@ -34,9 +34,7 @@ class DatabaseManager:
             self.conn.execute("PRAGMA busy_timeout = 5000")
             self.conn.execute("PRAGMA foreign_keys = ON")
             self.conn.enable_load_extension(True)
-            schema_path = os.path.join(
-                os.path.dirname(__file__), "..", "schema_v0.3.3.sql"
-            )
+            schema_path = os.path.join(os.path.dirname(__file__), "..", "schema_v0.3.3.sql")
             if os.path.exists(schema_path):
                 with open(schema_path, encoding="utf-8") as f:
                     self.conn.executescript(f.read())
@@ -94,7 +92,9 @@ class DatabaseManager:
         vault_name: str | None = None,
     ) -> dict | None:
         try:
-            sql = "SELECT id, vault_name, file_path, absolute_path, file_hash, is_deleted FROM files WHERE file_hash = ?"
+            sql = (
+                "SELECT id, vault_name, file_path, absolute_path, file_hash, is_deleted FROM files WHERE file_hash = ?"
+            )
             params: list = [file_hash]
             if vault_name:
                 sql += " AND vault_name = ?"
@@ -124,18 +124,14 @@ class DatabaseManager:
             return row["id"] if row else -1
         except sqlite3.IntegrityError as e:
             if "file_hash" in str(e):
-                logger.warning(
-                    "⚠️ 数据库 schema 版本过旧，请运行：python scripts/migrate_remove_file_hash_unique.py"
-                )
+                logger.warning("⚠️ 数据库 schema 版本过旧，请运行：python scripts/migrate_remove_file_hash_unique.py")
                 return -1
             raise
         except Exception as e:
             logger.error(f"❌ 插入/更新文件失败：{e}")
             return -1
 
-    def search_vectors(
-        self, query_vector: list[float], limit: int = 10
-    ) -> list[tuple[int, float]]:
+    def search_vectors(self, query_vector: list[float], limit: int = 10) -> list[tuple[int, float]]:
         if not self.vec_support or not query_vector:
             return []
         try:
@@ -158,9 +154,7 @@ class DatabaseManager:
 
     def escape_fts5_query(self, query: str) -> str:
         terms = query.split()
-        escaped_terms = [
-            '"' + term.replace('"', '""') + '"' for term in terms if term.strip()
-        ]
+        escaped_terms = ['"' + term.replace('"', '""') + '"' for term in terms if term.strip()]
         return " OR ".join(escaped_terms)
 
     def search_fts(self, keywords: str, limit: int = 10) -> list[tuple[int, float]]:

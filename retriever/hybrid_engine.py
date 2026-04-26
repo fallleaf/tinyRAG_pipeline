@@ -100,11 +100,7 @@ class HybridEngine:
                 logger.warning(f"⚠️ 持久化缓存初始化失败，降级为内存缓存: {e}")
 
         # 加载 jieba 自定义词典 (已由 helper 接管，此处保留兼容性日志)
-        if (
-            JIEBA_AVAILABLE
-            and hasattr(config, "jieba_user_dict")
-            and config.jieba_user_dict
-        ):
+        if JIEBA_AVAILABLE and hasattr(config, "jieba_user_dict") and config.jieba_user_dict:
             from pathlib import Path
 
             dict_path = Path(config.jieba_user_dict).expanduser()
@@ -112,21 +108,11 @@ class HybridEngine:
                 logger.info(f"✅ jieba 自定义词典已就绪: {dict_path}")
 
     def _extract_time_range_from_query(self, query: str) -> dict | None:
-        match = re.search(
-            r"(\d{4})(?:-(\d{1,2})(?:-(\d{1,2}))?|年(\d{1,2})(?:月(\d{1,2})日)?)", query
-        )
+        match = re.search(r"(\d{4})(?:-(\d{1,2})(?:-(\d{1,2}))?|年(\d{1,2})(?:月(\d{1,2})日)?)", query)
         if match:
             year = int(match.group(1))
-            month = (
-                int(match.group(2))
-                if match.group(2)
-                else (int(match.group(4)) if match.group(4) else None)
-            )
-            day = (
-                int(match.group(3))
-                if match.group(3)
-                else (int(match.group(5)) if match.group(5) else None)
-            )
+            month = int(match.group(2)) if match.group(2) else (int(match.group(4)) if match.group(4) else None)
+            day = int(match.group(3)) if match.group(3) else (int(match.group(5)) if match.group(5) else None)
             return {"year": year, "month": month, "day": day}
         match = re.search(r"(\d{4})年(?!\d)", query)
         if match:
@@ -221,9 +207,7 @@ class HybridEngine:
         effective_beta = beta if beta is not None else self.beta
         query_time = self._extract_time_range_from_query(query)
 
-        cache_key = self._make_cache_key(
-            query, limit, vault_filter, effective_alpha, effective_beta, query_time
-        )
+        cache_key = self._make_cache_key(query, limit, vault_filter, effective_alpha, effective_beta, query_time)
         cached = self._cache_get(cache_key)
         if cached is not None:
             return cached
@@ -254,9 +238,7 @@ class HybridEngine:
         self._cache_set(cache_key, deduped)
         return deduped
 
-    def _calculate_dynamic_confidence(
-        self, conf_json_str: str, query_time: dict | None = None
-    ) -> tuple[float, str]:
+    def _calculate_dynamic_confidence(self, conf_json_str: str, query_time: dict | None = None) -> tuple[float, str]:
         try:
             data = json.loads(conf_json_str or "{}")
         except Exception:
@@ -277,9 +259,7 @@ class HybridEngine:
                 time_match_mode = True
                 date_w = self._calculate_time_match_score(final_date_str, query_time)
                 try:
-                    days_passed = (
-                        datetime.now() - datetime.strptime(final_date_str, "%Y-%m-%d")
-                    ).days
+                    days_passed = (datetime.now() - datetime.strptime(final_date_str, "%Y-%m-%d")).days
                 except Exception:
                     pass
             else:
@@ -330,18 +310,14 @@ class HybridEngine:
         """
         query_params = list(candidate_ids)
         if vault_filter:
-            query_sql += " AND f.vault_name IN ({})".format(
-                ",".join(["?"] * len(vault_filter))
-            )
+            query_sql += " AND f.vault_name IN ({})".format(",".join(["?"] * len(vault_filter)))
             query_params.extend(vault_filter)
 
         rows = self.db.conn.execute(query_sql, query_params).fetchall()
         final_results = []
         for row in rows:
             cid = row["id"]
-            conf_score, conf_reason = self._calculate_dynamic_confidence(
-                row["confidence_json"], query_time
-            )
+            conf_score, conf_reason = self._calculate_dynamic_confidence(row["confidence_json"], query_time)
             v_score = vec_scores.get(cid, 0.0) * alpha
             k_score = math.log1p(max(0, kw_scores.get(cid, 0.0))) * beta
             final_score = (v_score + k_score) * conf_score
@@ -368,15 +344,10 @@ class HybridEngine:
         final_results.sort(key=lambda x: x.final_score, reverse=True)
         return final_results[:limit]
 
-    def _deduplicate_by_file(
-        self, results: list[RetrievalResult]
-    ) -> list[RetrievalResult]:
+    def _deduplicate_by_file(self, results: list[RetrievalResult]) -> list[RetrievalResult]:
         """按文件去重：同一文件只保留最高分 chunk"""
         file_map: dict[str, RetrievalResult] = {}
         for r in results:
-            if (
-                r.file_path not in file_map
-                or r.final_score > file_map[r.file_path].final_score
-            ):
+            if r.file_path not in file_map or r.final_score > file_map[r.file_path].final_score:
                 file_map[r.file_path] = r
         return list(file_map.values())
