@@ -27,10 +27,14 @@ class ScanStage(Stage):
         from storage.database import DatabaseManager
 
         config = ctx.config
-        db = DatabaseManager(
-            config.db_path, vec_dimension=config.embedding_model.dimensions
-        )
-        ctx.db = db
+        # 复用已存在的数据库连接，避免在 MCP 场景下重复创建导致 disk I/O error
+        if ctx.db is None:
+            db = DatabaseManager(
+                config.db_path, vec_dimension=config.embedding_model.dimensions
+            )
+            ctx.db = db
+        else:
+            db = ctx.db
 
         global_skip_dirs = DEFAULT_SKIP_DIRS | frozenset(config.exclude.dirs)
         scanner = Scanner(

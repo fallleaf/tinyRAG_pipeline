@@ -38,10 +38,10 @@ env/
 *.sqlite
 *.sqlite3
 # tinyRAG_pipeline specific database files
-rag.db
-cache.db
-rag.db-shm
-rag.db-wal
+data/rag.db
+data/cache.db
+data/rag.db-shm
+data/rag.db-wal
 storage/database.py.backup
 
 # Logs

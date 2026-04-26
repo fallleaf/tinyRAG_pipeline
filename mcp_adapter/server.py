@@ -243,7 +243,7 @@ def _format_search_context(results: list) -> str:
             f"置信度={r.confidence_score:.2f}" if hasattr(r, "confidence_score") else ""
         )
         lines.append(
-            f"【文档 {i+1}】{r.file_path}\n"
+            f"【文档 {i+1}】{r.absolute_path}\n"
             f"  章节: {getattr(r, 'section', '')}\n"
             f"  评分: {score_info} {confidence}\n"
             f"  内容: {r.content[:500]}"
