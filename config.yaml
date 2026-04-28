@@ -31,6 +31,14 @@ vaults:
         - "Excalidraw"
         - "98.附件"
       patterns: []
+
+  # 家庭物品管理系统
+  - path: "~/household/items"
+    name: home_items
+    enabled: true
+    exclude:
+      dirs: []
+      patterns: []
 # ── 全局排除规则 ────────────────────────────────────
 exclude:
   dirs:
@@ -100,6 +108,9 @@ exclude:
 # ── 数据库 ──────────────────────────────────────────
 db_path: "./data/rag.db"
 
+# ── 物品存储目录（家庭物品管理系统）──────────────────
+items_dir: "~/household/items"
+
 # ── 嵌入模型 ────────────────────────────────────────
 embedding_model:
   name: "jinaai/jina-embeddings-v2-base-zh"
@@ -126,6 +137,7 @@ confidence:
     header: 1.0
     text: 0.95
     list: 0.9
+    item: 1.0
   doc_type_rules:
     official: 1.2
     project: 1.15
@@ -143,6 +155,9 @@ confidence:
     draft: 0.7
     archived: 0.5
     存档: 0.5
+    # 物品状态
+    lost: 0.3
+    lent: 0.7
   date_decay:
     enabled: true
     half_life_days: 365
@@ -154,6 +169,7 @@ confidence:
       personal: 180
       diary: 180
       archive: 90
+      item: 365
   default_weight: 1.0
 
 # ── 日志级别 ────────────────────────────────────────

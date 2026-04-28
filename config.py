@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """config.py - tinyRAG_pipeline 配置契约与加载层"""
 
+import re
 from pathlib import Path
 from typing import Any, Literal
 import yaml
@@ -88,6 +89,9 @@ class Config(BaseModel):
 
     # 数据库
     db_path: str = "./data/rag.db"
+
+    # 物品存储目录（家庭物品管理系统）
+    items_dir: str = "./data/items"
 
     # 嵌入模型
     embedding_model: ModelConfig = Field(default_factory=ModelConfig)

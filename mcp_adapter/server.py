@@ -19,6 +19,7 @@ import json
 import os
 import sys
 import time
+import yaml
 from pathlib import Path
 from typing import Any
 
@@ -41,6 +42,7 @@ from pipeline.stages import (
     SearchStage,
 )
 from helpers.logger import setup_logger
+from items_store import ItemsStore
 
 logger = setup_logger(level="INFO")
 
@@ -134,6 +136,11 @@ class AppContext:
         # Prompt 模板（延迟加载）
         self._tpl_search: str | None = None
         self._tpl_summarize: str | None = None
+        # 物品存储管理器
+        self.items_store: ItemsStore | None = None
+        # EmbeddingEngine 缓存（避免重复创建）
+        self._embed_engine = None
+        self._embed_engine_config_hash = None
 
     async def initialize(self):
         if self._initialized:
@@ -157,6 +164,9 @@ class AppContext:
             self._tpl_summarize = _load_prompt_template(
                 "prompt_summarize_document.md", DEFAULT_TPL_SUMMARIZE
             )
+            # 初始化物品存储管理器
+            items_dir = getattr(self.config, "items_dir", "./data/items")
+            self.items_store = ItemsStore(items_dir, self.db, self.config)
             self._initialized = True
             logger.info("MCP AppContext initialized via Pipeline")
 
@@ -167,6 +177,28 @@ class AppContext:
     @property
     def tpl_summarize(self) -> str:
         return self._tpl_summarize or DEFAULT_TPL_SUMMARIZE
+
+    def get_embed_engine(self):
+        """获取或创建 EmbeddingEngine 实例（缓存）"""
+        import hashlib
+        from embedder.embed_engine import EmbeddingEngine
+
+        # 计算配置哈希，用于检测配置变更
+        config_str = f"{self.config.embedding_model.name}|{self.config.embedding_model.cache_dir}|{self.config.embedding_model.batch_size}|{self.config.embedding_model.unload_after_seconds}"
+        config_hash = hashlib.sha256(config_str.encode()).hexdigest()
+
+        # 如果配置变更或实例不存在，重新创建
+        if self._embed_engine is None or self._embed_engine_config_hash != config_hash:
+            logger.info("🔄 创建/更新 EmbeddingEngine 缓存实例")
+            self._embed_engine = EmbeddingEngine(
+                model_name=self.config.embedding_model.name,
+                cache_dir=self.config.embedding_model.cache_dir,
+                batch_size=self.config.embedding_model.batch_size,
+                unload_after_seconds=self.config.embedding_model.unload_after_seconds,
+            )
+            self._embed_engine_config_hash = config_hash
+
+        return self._embed_engine
 
     def add_background_task(self, task: asyncio.Task):
         self._background_tasks.append(task)
@@ -186,6 +218,13 @@ class AppContext:
         if self.db:
             try:
                 self.db.close()
+            except Exception:
+                pass
+        # 清理 EmbeddingEngine
+        if self._embed_engine:
+            try:
+                self._embed_engine.model.unload()
+                logger.info("✅ EmbeddingEngine 已清理")
             except Exception:
                 pass
 
@@ -447,6 +486,7 @@ async def tool_scan_index(args: dict[str, Any], ctx: AppContext) -> dict[str, An
         vault_excludes=ctx.vault_excludes,
         force_rebuild=False,
         quiet=True,
+        embed_engine=ctx.get_embed_engine(),  # 使用缓存的 EmbeddingEngine
     )
 
     # 执行 Scan + Diff + Chunk + Embed + Index
@@ -479,6 +519,7 @@ async def tool_rebuild_index(args: dict[str, Any], ctx: AppContext) -> dict[str,
                 vault_excludes=ctx.vault_excludes,
                 force_rebuild=True,
                 quiet=True,
+                embed_engine=ctx.get_embed_engine(),  # 使用缓存的 EmbeddingEngine
             )
             stages = [
                 ScanStage(),
@@ -542,6 +583,103 @@ async def tool_stats(args: dict[str, Any], ctx: AppContext) -> dict[str, Any]:
 # ── Tool Schema ──────────────────────────────────────
 
 TOOL_SCHEMAS = {
+    "store_item": {
+        "schema": {
+            "type": "object",
+            "properties": {
+                "item_name": {
+                    "type": "string",
+                    "description": "物品名称"
+                },
+                "location": {
+                    "type": "string",
+                    "description": "存放位置描述"
+                },
+                "aliases": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "物品别名列表，用于模糊检索"
+                },
+                "category": {
+                    "type": "string",
+                    "description": "物品分类，如：daily(日用品), documents(证件), electronics(电子产品), tools(工具)等"
+                },
+                "notes": {
+                    "type": "string",
+                    "description": "备注信息"
+                }
+            },
+            "required": ["item_name", "location"]
+        },
+        "description": "存储物品的存放位置信息 - 用于记录家庭物品存放位置，支持更新已存在的物品"
+    },
+    "query_items": {
+        "schema": {
+            "type": "object",
+            "properties": {
+                "query_type": {
+                    "type": "string",
+                    "enum": ["by_item", "by_location", "recommend_location"],
+                    "description": "查询类型：by_item=按物品查位置，by_location=按位置查物品，recommend_location=推荐存放位置"
+                },
+                "query": {
+                    "type": "string",
+                    "description": "查询内容：物品名称或位置描述"
+                },
+                "category": {
+                    "type": "string",
+                    "description": "物品分类过滤（可选）"
+                },
+                "top_k": {
+                    "type": "integer",
+                    "default": 5,
+                    "description": "返回结果数量"
+                }
+            },
+            "required": ["query_type", "query"]
+        },
+        "description": "查询物品存放位置或推荐存放位置 - 支持按物品名查询、按位置查询、智能推荐存放位置"
+    },
+    "update_item_status": {
+        "schema": {
+            "type": "object",
+            "properties": {
+                "item_name": {
+                    "type": "string",
+                    "description": "物品名称"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": ["active", "archived", "lost", "lent"],
+                    "description": "新状态：active(有效), archived(已移走), lost(已丢失), lent(已借出)"
+                }
+            },
+            "required": ["item_name", "status"]
+        },
+        "description": "更新物品状态 - 用于标记物品已移走、丢失或借出"
+    },
+    "list_items": {
+        "schema": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string",
+                    "description": "按分类筛选（可选）"
+                },
+                "status": {
+                    "type": "string",
+                    "description": "按状态筛选（可选）"
+                },
+                "limit": {
+                    "type": "integer",
+                    "default": 20,
+                    "description": "返回数量限制"
+                }
+            },
+            "required": []
+        },
+        "description": "列出所有物品 - 支持按分类和状态筛选"
+    },
     "search": {
         "schema": {
             "type": "object",
@@ -633,7 +771,266 @@ TOOL_SCHEMAS = {
     },
 }
 
+# ── 物品管理 Tool 实现 ────────────────────────────────
+
+
+async def tool_store_item(args: dict[str, Any], ctx: AppContext) -> dict[str, Any]:
+    """存储物品位置 Tool"""
+    await ctx.initialize()
+
+    if not ctx.items_store:
+        return {"success": False, "error": "物品存储管理器未初始化"}
+
+    item_name = args.get("item_name", "")
+    location = args.get("location", "")
+    aliases = args.get("aliases")
+    category = args.get("category", "misc")
+    notes = args.get("notes")
+
+    if not item_name or not location:
+        return {"success": False, "error": "item_name 和 location 为必填字段"}
+
+    result = ctx.items_store.store_item(
+        item_name=item_name,
+        location=location,
+        aliases=aliases,
+        category=category,
+        notes=notes,
+    )
+
+    # 如果创建了新文件，触发增量索引
+    if result.get("success") and result.get("action") == "created":
+        try:
+            # 触发增量扫描
+            pipeline_ctx = PipelineContext(
+                config=ctx.config,
+                db=ctx.db,
+                vault_configs=ctx.vault_configs,
+                vault_excludes=ctx.vault_excludes,
+                force_rebuild=False,
+                quiet=True,
+                embed_engine=ctx.get_embed_engine(),  # 使用缓存的 EmbeddingEngine
+            )
+            stages = [ScanStage(), DiffStage(), ChunkStage(), EmbedStage(), IndexStage()]
+            _run_pipeline_sync("mcp_store_item", stages, pipeline_ctx)
+            result["indexed"] = True
+        except Exception as e:
+            logger.warning(f"索引更新失败: {e}")
+            result["indexed"] = False
+            result["index_error"] = str(e)
+
+    return result
+
+
+async def tool_query_items(args: dict[str, Any], ctx: AppContext) -> dict[str, Any]:
+    """查询物品 Tool"""
+    await ctx.initialize()
+
+    query_type = args.get("query_type", "by_item")
+    query = args.get("query", "")
+    category = args.get("category")
+    top_k = min(max(args.get("top_k", 5), 1), 50)
+
+    if not query:
+        return {"success": False, "error": "query 为必填字段"}
+
+    results = []
+
+    if query_type == "by_item":
+        # 按物品名称查询位置
+        results = _do_search(ctx, query, top_k=top_k, mode="hybrid")
+
+        formatted_results = []
+        for r in results:
+            formatted_results.append({
+                "item_name": _extract_item_name(r.content, r.file_path),
+                "location": _extract_location(r.content),
+                "category": _extract_category(r.content),
+                "status": _extract_status(r.content),
+                "score": round(r.final_score, 4),
+                "confidence": round(r.confidence_score, 4),
+                "file_path": r.file_path,
+            })
+
+        return {
+            "success": True,
+            "query_type": query_type,
+            "query": query,
+            "total": len(formatted_results),
+            "results": formatted_results,
+        }
+
+    elif query_type == "by_location":
+        # 按位置查询物品
+        results = _do_search(ctx, query, top_k=top_k, mode="hybrid")
+
+        formatted_results = []
+        for r in results:
+            formatted_results.append({
+                "item_name": _extract_item_name(r.content, r.file_path),
+                "location": _extract_location(r.content),
+                "category": _extract_category(r.content),
+                "status": _extract_status(r.content),
+                "score": round(r.final_score, 4),
+                "file_path": r.file_path,
+            })
+
+        return {
+            "success": True,
+            "query_type": query_type,
+            "query": query,
+            "total": len(formatted_results),
+            "results": formatted_results,
+        }
+
+    elif query_type == "recommend_location":
+        # 推荐存放位置
+        # 1. 先搜索同类物品
+        category_query = f"{query} {category}" if category else query
+        results = _do_search(ctx, category_query, top_k=top_k * 2, mode="hybrid")
+
+        # 2. 提取推荐位置
+        recommendations = []
+        seen_locations = set()
+
+        for r in results:
+            item_name = _extract_item_name(r.content, r.file_path)
+            location = _extract_location(r.content)
+
+            if location and location not in seen_locations:
+                seen_locations.add(location)
+                recommendations.append({
+                    "location": location,
+                    "similar_item": item_name,
+                    "score": round(r.final_score, 4),
+                })
+
+                if len(recommendations) >= top_k:
+                    break
+
+        return {
+            "success": True,
+            "query_type": query_type,
+            "query": query,
+            "category": category,
+            "total": len(recommendations),
+            "recommendations": recommendations,
+            "message": f"基于相似物品「{query}」推荐以下存放位置" if recommendations else "暂无参考数据，建议放在常用存储区域",
+        }
+
+    else:
+        return {"success": False, "error": f"未知的查询类型: {query_type}"}
+
+
+def _extract_item_name(content: str, file_path: str) -> str:
+    """从内容或文件路径提取物品名称"""
+    # 尝试从 frontmatter 提取
+    if content.startswith("---"):
+        try:
+            end_idx = content.index("---", 3)
+            yaml_str = content[4:end_idx].strip()
+            data = yaml.safe_load(yaml_str)
+            if isinstance(data, dict) and "item_name" in data:
+                return data["item_name"]
+        except Exception:
+            pass
+
+    # 从文件名提取
+    import os
+    filename = os.path.basename(file_path)
+    if "_" in filename:
+        return filename.split("_")[0]
+    return filename.replace(".md", "")
+
+
+def _extract_location(content: str) -> str:
+    """从内容提取存放位置"""
+    try:
+        if "## 存放位置" in content:
+            start = content.index("## 存放位置") + len("## 存放位置")
+            end = content.find("\n## ", start)
+            if end == -1:
+                end = len(content)
+            location = content[start:end].strip()
+            return " ".join(location.split())
+    except Exception:
+        pass
+    return ""
+
+
+def _extract_category(content: str) -> str:
+    """从内容提取物品分类"""
+    if content.startswith("---"):
+        try:
+            end_idx = content.index("---", 3)
+            yaml_str = content[4:end_idx].strip()
+            data = yaml.safe_load(yaml_str)
+            if isinstance(data, dict):
+                return data.get("category", "misc")
+        except Exception:
+            pass
+    return "misc"
+
+
+def _extract_status(content: str) -> str:
+    """从内容提取物品状态"""
+    if content.startswith("---"):
+        try:
+            end_idx = content.index("---", 3)
+            yaml_str = content[4:end_idx].strip()
+            data = yaml.safe_load(yaml_str)
+            if isinstance(data, dict):
+                return data.get("status", "active")
+        except Exception:
+            pass
+    return "active"
+
+
+async def tool_update_item_status(args: dict[str, Any], ctx: AppContext) -> dict[str, Any]:
+    """更新物品状态 Tool"""
+    await ctx.initialize()
+
+    if not ctx.items_store:
+        return {"success": False, "error": "物品存储管理器未初始化"}
+
+    item_name = args.get("item_name", "")
+    status = args.get("status", "")
+
+    if not item_name or not status:
+        return {"success": False, "error": "item_name 和 status 为必填字段"}
+
+    return ctx.items_store.update_status(item_name, status)
+
+
+async def tool_list_items(args: dict[str, Any], ctx: AppContext) -> dict[str, Any]:
+    """列出物品 Tool"""
+    await ctx.initialize()
+
+    if not ctx.items_store:
+        return {"success": False, "error": "物品存储管理器未初始化"}
+
+    category = args.get("category")
+    status = args.get("status")
+    limit = min(max(args.get("limit", 20), 1), 100)
+
+    items = ctx.items_store.list_items(category=category, status=status, limit=limit)
+
+    return {
+        "success": True,
+        "total": len(items),
+        "filters": {
+            "category": category,
+            "status": status,
+        },
+        "items": items,
+    }
+
+
 TOOL_HANDLERS = {
+    "store_item": tool_store_item,
+    "query_items": tool_query_items,
+    "update_item_status": tool_update_item_status,
+    "list_items": tool_list_items,
     "search": tool_search,
     "search_with_context": tool_search_with_context,
     "summarize_document": tool_summarize_document,

@@ -23,13 +23,18 @@ class EmbedStage(Stage):
         from embedder.embed_engine import EmbeddingEngine
 
         config = ctx.config
-        embed_engine = EmbeddingEngine(
-            model_name=config.embedding_model.name,
-            cache_dir=config.embedding_model.cache_dir,
-            batch_size=config.embedding_model.batch_size,
-            unload_after_seconds=config.embedding_model.unload_after_seconds,
-        )
-        ctx.embed_engine = embed_engine
+
+        # 优先使用 PipelineContext 中的 embed_engine（缓存）
+        if ctx.embed_engine is None:
+            embed_engine = EmbeddingEngine(
+                model_name=config.embedding_model.name,
+                cache_dir=config.embedding_model.cache_dir,
+                batch_size=config.embedding_model.batch_size,
+                unload_after_seconds=config.embedding_model.unload_after_seconds,
+            )
+            ctx.embed_engine = embed_engine
+        else:
+            embed_engine = ctx.embed_engine
 
         # 流式批处理：按 stream_batch_size 分批
         stream_batch_size = getattr(config, "stream_batch_size", 100)
