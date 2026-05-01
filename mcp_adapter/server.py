@@ -1135,6 +1135,12 @@ def _prompt_search_with_context(
         },
     )
 
+    # DEBUG: 打印返回给 LLM 的关键内容
+    logger.info(f"📋 doc_list 内容:\n{doc_list}")
+    if len(prompt_text) > 500:
+        # 打印最后 500 字符（包含 doc_list 部分）
+        logger.info(f"📝 prompt_text 末尾:\n...{prompt_text[-500:]}")
+
     return GetPromptResult(
         description=f"检索回答: {query}",
         messages=[
