@@ -208,6 +208,11 @@ class AppContext:
                 self._background_tasks.remove(t)
 
         task.add_done_callback(_on_done)
+        
+    @property
+    def has_running_background_tasks(self) -> bool:
+        """检查是否有正在运行的后台任务"""
+        return len([t for t in self._background_tasks if not t.done()]) > 0
 
     async def shutdown(self):
         for t in self._background_tasks:
@@ -506,15 +511,31 @@ async def tool_scan_index(args: dict[str, Any], ctx: AppContext) -> dict[str, An
 
 
 async def tool_rebuild_index(args: dict[str, Any], ctx: AppContext) -> dict[str, Any]:
-    """全量重建 Tool - 后台执行 Build Pipeline"""
-    await ctx.initialize()
+    """全量重建 Tool - 后台执行 Build Pipeline
+    
+    注意：此工具设计为"触发并忘记"模式，立即返回后台任务状态。
+    MCP 客户端不应等待重建完成，可通过 stats tool 查看进度。
+    """
+    # 快速响应：不等待初始化完成，在后台任务中初始化
+    # 这样可以避免 MCP 客户端超时
 
     async def _background_rebuild():
+        # 为后台任务创建独立的数据库连接，避免与主线程共享连接导致并发问题
+        from storage.database import DatabaseManager
+        independent_db = None
         try:
             logger.info("Starting background index rebuild via Pipeline...")
+            
+            # 在后台任务中初始化（如果尚未初始化）
+            await ctx.initialize()
+            
+            independent_db = DatabaseManager(
+                ctx.config.db_path,
+                vec_dimension=ctx.config.embedding_model.dimensions
+            )
             pipeline_ctx = PipelineContext(
                 config=ctx.config,
-                db=ctx.db,
+                db=independent_db,  # 使用独立连接
                 vault_configs=ctx.vault_configs,
                 vault_excludes=ctx.vault_excludes,
                 force_rebuild=True,
@@ -532,14 +553,29 @@ async def tool_rebuild_index(args: dict[str, Any], ctx: AppContext) -> dict[str,
             logger.info("Background rebuild completed")
         except Exception as e:
             logger.error(f"Background rebuild failed: {e}", exc_info=True)
+        finally:
+            # 确保关闭独立连接
+            if independent_db:
+                try:
+                    independent_db.close()
+                    logger.info("Background rebuild DB connection closed")
+                except Exception:
+                    pass
 
+    # 立即创建后台任务并返回，不等待初始化
     task = asyncio.create_task(_background_rebuild())
     ctx.add_background_task(task)
-    return {"status": "started", "message": "Index rebuild running in background"}
+    
+    # 立即返回，不阻塞 MCP 客户端
+    return {
+        "status": "started", 
+        "message": "索引重建已在后台启动，请稍后通过 stats tool 查看进度",
+        "note": "此操作可能需要几分钟到几十分钟，取决于知识库大小"
+    }
 
 
 async def tool_stats(args: dict[str, Any], ctx: AppContext) -> dict[str, Any]:
-    """统计 Tool"""
+    """统计 Tool - 显示知识库统计信息和后台任务状态"""
     await ctx.initialize()
     db = ctx.db
     files_total = db.conn.execute(
@@ -556,6 +592,15 @@ async def tool_stats(args: dict[str, Any], ctx: AppContext) -> dict[str, Any]:
     except Exception:
         vectors_total = 0
     db_size = os.path.getsize(ctx.config.db_path) if ctx.config.db_path else 0
+    
+    # 检查后台任务状态
+    running_tasks = [t for t in ctx._background_tasks if not t.done()]
+    background_status = {
+        "running": len(running_tasks),
+        "total": len(ctx._background_tasks),
+        "has_rebuild_in_progress": len(running_tasks) > 0,
+    }
+    
     return {
         "files": {
             "total": files_total,
@@ -577,6 +622,7 @@ async def tool_stats(args: dict[str, Any], ctx: AppContext) -> dict[str, Any]:
             "name": ctx.config.embedding_model.name,
             "size": ctx.config.embedding_model.size,
         },
+        "background_tasks": background_status,
     }
 
 

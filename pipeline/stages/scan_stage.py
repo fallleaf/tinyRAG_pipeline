@@ -66,9 +66,15 @@ class DiffStage(Stage):
 
         if ctx.force_rebuild:
             # 强制模式：扫描后的 new_files 全部入库，然后索引所有文件
+            upsert_errors = 0
             for meta in report.new_files:
-                db.upsert_file(meta.to_dict())
+                file_id = db.upsert_file(meta.to_dict())
+                if file_id == -1:
+                    upsert_errors += 1
+                    logger.warning(f"⚠️ 文件入库失败: {meta.file_path}")
             db.conn.commit()
+            if upsert_errors > 0:
+                logger.warning(f"⚠️ 共 {upsert_errors} 个文件入库失败，这些文件将被跳过")
             ctx.files_to_index = [
                 dict(row)
                 for row in db.conn.execute(

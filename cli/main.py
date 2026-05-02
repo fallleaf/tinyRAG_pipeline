@@ -98,21 +98,9 @@ def rebuild_index(
         typer.echo("⚠️ 重建索引会删除现有向量表，请使用 --force 确认")
         raise typer.Exit(1)
 
-    typer.echo("🗑️  删除现有向量表...")
-    import sqlite3
-    import sqlite_vec
-
-    db_path = "./data/rag.db"
-    conn = sqlite3.connect(db_path)
-    conn.enable_load_extension(True)
-    conn.load_extension(sqlite_vec.loadable_path())
-
-    # 删除向量表
-    conn.execute("DROP TABLE IF EXISTS vectors")
-    conn.commit()
-    conn.close()
-
-    typer.echo("✅ 向量表已删除")
+    # 注意：不再手动删除向量表，统一由 ScanStage 在 force_rebuild=True 时处理
+    # 这确保了 CLI 和 MCP 重建行为的一致性，避免数据库连接不一致问题
+    typer.echo("🗑️  准备清空并重建索引...")
 
     # 重新构建
     ctx = PipelineContext(config_path=config_path)
