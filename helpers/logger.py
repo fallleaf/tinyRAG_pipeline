@@ -11,7 +11,7 @@ def _ensure_log_dir():
     """确保日志目录存在"""
     log_dir = Path(__file__).parent.parent / "logs"
     log_dir.mkdir(exist_ok=True)
-    return str(log_dir / "tinyrag_pipeline.log")
+    return str(log_dir / "tinyRAG.log")
 
 
 def setup_logger(level: str = "INFO"):
