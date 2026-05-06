@@ -319,7 +319,11 @@ class HybridEngine:
             cid = row["id"]
             conf_score, conf_reason = self._calculate_dynamic_confidence(row["confidence_json"], query_time)
             v_score = vec_scores.get(cid, 0.0) * alpha
-            k_score = math.log1p(max(0, kw_scores.get(cid, 0.0))) * beta
+            #k_score = math.log1p(max(0, kw_scores.get(cid, 0.0))) * beta
+            # 建议修改第 266 行如下：
+            raw_kw_score = kw_scores.get(cid, 0.0)
+            # 取绝对值以将 SQLite 的负分转为正向相关分
+            k_score = math.log1p(abs(raw_kw_score)) * beta
             final_score = (v_score + k_score) * conf_score
             final_results.append(
                 RetrievalResult(
