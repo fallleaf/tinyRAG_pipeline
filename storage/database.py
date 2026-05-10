@@ -170,7 +170,19 @@ class DatabaseManager:
                    ORDER BY f.rank LIMIT ?""",
                 (escaped_query, limit),
             )
-            return [(row[0], -row[1]) for row in cursor.fetchall()]
+            #return [(row[0], -row[1]) for row in cursor.fetchall()]
+            results = []
+            for row in cursor.fetchall():
+                rank = row[1]
+                if rank <= 0:
+                    score = 1.0 / (1.0 - rank) if rank < 0 else 1.0
+                else:
+                    score = 1.0 / (1.0 + rank)
+                results.append((row[0], score))
+            return results
+
+
+
         except Exception as e:
             logger.error(f"❌ FTS5 搜索失败: {e}")
             return []
